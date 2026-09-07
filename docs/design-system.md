@@ -78,10 +78,10 @@ preference when the user has not chosen.
 | `--fg-primary` | `#ebeff4` | `#192029` | Headings, KPI figures, large text |
 | `--fg-body` | `#d3dbe3` | `#192029` | **Table cells and running text at 13–14px** |
 | `--fg-secondary` | `#aab2ba` | `#4c535d` | Descriptions, secondary labels |
-| `--fg-muted` | `#7d868f` | `#6b727a` | Column headers, timestamps, placeholder |
+| `--fg-muted` | `#8a939c` | `#6b727a` | Column headers, timestamps, placeholder |
 | `--line-subtle` | `#2f3843` | `#d9d6cf` | Row rules, decorative dividers |
 | `--line-default` | `#30363d` | `#d3d1cb` | Card and container edges |
-| `--line-strong` | `#5f6771` | `#8d8a83` | **Control boundaries — required on inputs** |
+| `--line-strong` | `#6d757f` | `#8d8a83` | **Control boundaries — required on inputs** |
 | `--accent` | `#d7935e` | `#9a541b` | Primary action, focus ring, active nav |
 | `--accent-hover` | `#e8a675` | `#87470f` | |
 | `--accent-active` | `#c4824f` | `#77400c` | |
@@ -101,18 +101,28 @@ hardcode the button label colour — use the token.
 | **fg-body / bg-base** | **13.33:1** | 15.45:1 | 4.5 |
 | fg-primary / bg-raised | 14.84:1 | 16.11:1 | 4.5 |
 | fg-secondary / bg-base | 8.69:1 | 7.32:1 | 4.5 |
-| fg-muted / bg-base | 5.04:1 | 4.58:1 | 4.5 |
-| fg-muted / bg-raised | 4.63:1 | 4.78:1 | 4.5 |
+| fg-muted / bg-base | 5.98:1 | 4.58:1 | 4.5 |
+| fg-muted / bg-raised | 5.49:1 | 4.78:1 | 4.5 |
+| **fg-muted / bg-overlay** | **5.01:1** | **4.87:1** | 4.5 |
 | accent / bg-base | 7.31:1 | 5.41:1 | 4.5 |
 | accent / bg-raised | 6.71:1 | 5.64:1 | 4.5 |
 | accent-fg / accent (button) | 7.31:1 | 5.64:1 | 4.5 |
 | accent-hover / bg-base | 9.01:1 | 6.73:1 | 4.5 |
-| **line-strong / bg-base** | **3.26:1** | **3.24:1** | 3.0 (WCAG 1.4.11) |
+| **line-strong / bg-base** | **4.00:1** | **3.24:1** | 3.0 (WCAG 1.4.11) |
+| **line-strong / bg-raised** | **3.67:1** | **3.38:1** | 3.0 (WCAG 1.4.11) |
+| **line-strong / bg-overlay** | **3.35:1** | **3.45:1** | 3.0 (WCAG 1.4.11) |
 | accent as focus ring / bg-base | 7.31:1 | 5.41:1 | 3.0 |
 
 `--line-subtle` and `--line-default` are decorative and deliberately below 3:1 — they
 divide, they do not bound a control. **Any input, select, checkbox or bounded control
 must use `--line-strong`**, which is the only border token that clears 1.4.11.
+
+**Both dark values were corrected after the login build.** They had only ever been
+measured against `bg-base`, and a form does not live on the page ground — it lives in a
+card or a modal. `--line-strong` at `#5f6771` gave 2.99:1 on `bg-raised` and 2.73:1 on
+`bg-overlay`, and `--fg-muted` at `#7d868f` gave 4.23:1 as placeholder text on an overlay.
+Both now clear their thresholds on **every** container a control can sit in, which is what
+the table above records. When adding a surface token, re-measure these two against it.
 
 ### 3.2 Status
 
@@ -321,16 +331,43 @@ made literal, and it is instantly recognisable.
 | Token | Size | Line height | Weight | Tracking | Family | Use |
 | --- | --- | --- | --- | --- | --- | --- |
 | `text-display` | 56px | 1.04 | 400 | −0.022em | Display | Landing hero only |
-| `text-h1` | 34px | 1.16 | 600 | −0.018em | Sans | Page title, empty-state headline |
-| `text-h2` | 24px | 1.25 | 600 | −0.014em | Sans | Section, modal title |
+| `text-h1` | 34px | 1.16 | 500 | −0.018em | **Display** | Wordmark, empty-state headline — **`(marketing)` only** |
+| `text-h2` | 24px | 1.25 | 600 | −0.014em | Sans | Page title, section, modal title, in-app empty state — **the ceiling in `(app)`** |
 | `text-h3` | 18px | 1.35 | 600 | −0.008em | Sans | Card title, KPI label |
 | `text-h4` | 15px | 1.4 | 600 | −0.003em | Sans | Subsection, form group |
 | `text-body` | 14px | 1.55 | 400 | 0 | Sans | Default |
 | `text-small` | 13px | 1.45 | 400 | 0.002em | Sans | Table cells, help text |
 | `text-micro` | 11px | 1.3 | 500 | 0.06em | Sans, uppercase | Column headers, metadata |
 
-KPI figures on the dashboard use Plex Mono at `text-h1` size, weight 500 — the one place
-the mono appears large, and the dashboard's typographic signature.
+KPI figures on the dashboard use Plex Mono at `text-h1` **size**, weight 500 — the one
+place the mono appears large, and the dashboard's typographic signature. Note this borrows
+the size token only, paired with `font-mono`; it is not the display face, and it is the
+sole exception to the `(marketing)`-only rule below.
+
+`text-h1` is set in **Newsreader**. This resolves a contradiction found during the login
+build: the table above previously said Sans while §7's empty state specified a Newsreader
+headline. Newsreader wins — 34px is where the display face earns its place, and the
+wordmark and the empty-state headline are the only two things that live at that size.
+Weight drops to 500 to match: 600 is not in the loaded Newsreader range.
+
+`text-*` utilities carry size, leading, tracking and weight only — never family. Pair it
+explicitly: `class="font-display text-h1"`.
+
+**Newsreader is scoped to marketing and auth routes. Settled, not open.**
+
+It loads in the `(marketing)` segment only — the landing page, login, and the auth and
+error surfaces that sit beside them. The app shell ships Plex Sans and Plex Mono and
+nothing else.
+
+Two reasons. A surface reached dozens of times a week is the wrong place for a display
+serif: the face carries an editorial register that is right once and wearing on the four
+hundredth visit, which is the test §2 sets for every application surface. And loading it
+in `(app)` would put a third family in the shell for one headline on a screen users are
+trying to get past.
+
+**The rule that follows:** `text-h1` may only be used inside `(marketing)`. Anywhere else
+it renders in the fallback serif, which is drift, not design. In-app headlines top out at
+`text-h2` in Plex Sans — including in-app empty states (§7).
 
 ### Numerals — non-negotiable
 
@@ -440,8 +477,44 @@ ring away from whatever sits beneath, so **one definition works on every surface
 table row, card, copper fill. Applied globally on `:focus-visible` (never `:focus`, so
 pointer users get no ring on click).
 
-On an accent-filled control, copper-on-copper vanishes — use `--ring-focus-inverse`
-(`accent-fg` band, `fg-primary` ring). Focus ring is measured at 7.31:1 (dark) and
+**The global rule must live inside `@layer base`.** Tailwind emits generated utilities
+into the `utilities` layer, and an *unlayered* rule beats every layered rule regardless of
+specificity. While the global `:focus-visible` sat unlayered it silently overrode
+`ring-inverse` on the primary button — the measured ring was copper on copper at
+**1.00:1**, the exact failure `ring-inverse` exists to prevent, and no amount of
+specificity in the utility could win. Anything that a utility is meant to override belongs
+in `@layer base`.
+
+On an accent-filled control, copper-on-copper vanishes — use the **`ring-inverse`**
+utility, which applies `--ring-focus-inverse` (`accent-fg` band, `fg-primary` ring) and
+beats the global rule on specificity:
+
+```css
+@utility ring-inverse {
+  &:focus-visible { outline: none; box-shadow: var(--ring-focus-inverse); }
+}
+```
+
+Apply it to any control filled with `--accent`: the primary button, an active filled tab,
+a selected chip. Everything else inherits the global ring and needs no class.
+
+**Measured on the login form** (Tab order: email, password, Sign in, demo link):
+
+| Element | Band | Ring | Band vs fill | Ring vs band | Ring vs container |
+| --- | --- | --- | --- | --- | --- |
+| email / password | `#0e1319` | `#d7935e` | 1.09:1 | 7.31:1 | 6.71:1 |
+| **Sign in** (`ring-inverse`) | `#0e1319` | `#ebeff4` | **7.31:1** | **16.15:1** | **14.84:1** |
+| demo link | `#0e1319` | `#d7935e` | 1.09:1 | 7.31:1 | 6.71:1 |
+
+Read the ring against what it **touches**. The outer ring never abuts the element fill —
+the 2px band sits between them — so "ring vs fill" is not the governing number. On the
+Sign in button that comparison is 2.21:1, which looks like a failure and is not one: the
+ring's actual neighbours are the band at 16.15:1 and the card at 14.84:1, and the band
+meets the copper fill at 7.31:1. Every adjacency clears 3:1 comfortably.
+
+The band being only 1.09:1 against an input's fill is likewise fine — with the field now
+taking the card's ground, the band reads as a thin dark outline and the copper ring at
+6.71:1 is what carries the indication. Focus ring is measured at 7.31:1 (dark) and
 5.41:1 (light) against the ground, well past the 3:1 required.
 
 ### Table
@@ -506,16 +579,82 @@ of intent.
 **Loading holds width** — render the label at `visibility: hidden` with the spinner
 absolutely centred. A button that resizes mid-submit moves the layout under the cursor.
 
+#### Spinner
+
+The one loading indicator. 14×14px, `stroke-width: 2`, `currentColor` so it inherits
+the button's text colour in every variant and both themes:
+
+- **Track**: full circle, `r=5.5`, `opacity 0.25`.
+- **Head**: a 90° arc from 12 o'clock, `stroke-linecap: round`, full opacity.
+- **Animation**: `animate-spin` (1s linear infinite).
+
+```html
+<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" class="animate-spin">
+  <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="2" opacity="0.25" />
+  <path d="M12.5 7A5.5 5.5 0 0 0 7 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+</svg>
+```
+
+Always `aria-hidden`; the button carries `aria-busy` and `disabled`, which is what
+assistive technology announces. Used in: the button loading state, inline saving
+indicators, and the unmatched-queue matching action. **Not** used for page or table
+loading — those get skeletons, which preserve layout.
+
+Under `prefers-reduced-motion` the rotation collapses to 1ms via the global block, leaving
+a static ring. That is intentional: the disabled button and `aria-busy` still communicate
+the pending state without motion.
+
 ### Text input and select
 
-- Default: `bg-inset`, 1px `--line-strong` (the 3:1 token — required), `radius-sm`,
-  36px, padding `0 10px`, `text-body`, `fg-primary`. Placeholder `fg-muted`.
+- Default: **ground inherited from the container** (`bg-transparent`), 1px
+  `--line-strong` (the 3:1 token — required), `radius-sm`, 36px, padding `0 10px`,
+  `text-body`, `fg-primary`. Placeholder `fg-muted`.
+
+  **This was `bg-inset` and that was wrong.** On the login card the rendered input came
+  out at luminance 0.00496 against a card at 0.01128 — 44% of the card, and below even
+  the page ground at 0.00629. It read as a hole punched through the card rather than a
+  surface to type on, inverting the depth model §6 sets out. The cause is structural: the
+  dark base `#0e1319` is close to the floor, so there is no room to recess beneath it, and
+  `--bg-inset` at `#0b1015` is not a well but a void. The idiom works in light, where
+  `#f0efeb` under a white card recesses correctly — but a token cannot mean "one step
+  down" in one theme and hold up in the other when one theme has no step down to give.
+
+  Taking the container's ground makes the field sit **at** its container in both themes,
+  with the `--line-strong` border doing the bounding. Measured after the change: input
+  luminance 0.01128, identical to the card, border 3.67:1 against it.
+
+  `--bg-inset` survives for code and `<pre>` blocks, where reading as recessed is correct
+  and nothing needs to be typed into it.
 - Focus: `--ring-focus`, border → `--accent`.
 - Error: border `--status-failed-line`, ring uses `failed`, message below in
   `text-small` / `failed` **with a `✕` glyph** — never colour alone.
 - Disabled: `bg-base`, border `line-default`, text `fg-muted`, `not-allowed`.
+- **Label**: `text-micro` uppercase in `--fg-muted`, 8px above the control, always a real
+  `<label for>`. Deliberately the same treatment as a table column header — both name a
+  field of data, and one voice for both is what makes a form read as part of the ledger
+  rather than a separate application. Never use a placeholder as the label: placeholders
+  vanish on focus and are not an accessible name.
 - Numeric inputs (amount fields) use the `money` utility and right-align.
 - Select uses the same box with a `--fg-muted` chevron; native `<select>` on mobile.
+
+### Inline link
+
+`--accent` with `underline underline-offset-2`, hovering to `--accent-hover`. The
+underline is not optional: colour alone does not separate a link from emphasis, and the
+accent also appears on non-interactive chrome.
+
+```html
+<a class="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover">
+```
+
+`rounded-xs` is there for focus. The global `:focus-visible` ring is drawn with
+`box-shadow`, which follows the element's border-radius, and a `0` radius on an inline
+element gives hard corners that clip awkwardly across a line break.
+
+Focus-visible inherits the global ring — never add a per-link ring. The accent measures
+7.31:1 (dark) and 5.41:1 (light) against the ground, so the ring reads on both.
+
+A link that would navigate away from unsaved work is a button instead, so it can prompt.
 
 ### Card
 
@@ -549,17 +688,28 @@ container has a 1px `line-subtle` bottom rule the active rule sits on.
 
 ### Empty state
 
-**Moderate ambition — the one app surface that gets a designed moment.**
+**Moderate ambition — a designed moment, sized to where it appears.**
 
-Centred, max-width 420. Headline `text-h1` in **Newsreader**. One sentence in
-`fg-secondary`. One primary action. Behind it, an engraved guilloché SVG at **4%
-opacity**, no animation.
+Centred, max-width 420. One sentence in `fg-secondary` below the headline. One primary
+action. Behind it, an engraved guilloché SVG at **4% opacity**, no animation.
+
+The headline depends on the segment, because Newsreader only loads in one of them (§5):
+
+| Where | Headline | Face |
+| --- | --- | --- |
+| `(marketing)` — landing, login, auth and error surfaces | `text-h1` | **Newsreader** |
+| `(app)` — ledger, payments, queue, settings, and every in-app empty state | `text-h2` | **Plex Sans**, weight 600 |
+
+Do not reach for `text-h1` in `(app)` to make an empty state feel bigger. It will render
+in the fallback serif, which reads as a bug rather than a bolder choice. The guilloché
+plate and the centred composition are what carry the moment in-app; the display face is
+not available and is not needed.
 
 Distinguish two cases:
 - **First-run empty** (no invoices ever): the full treatment above.
 - **Filtered empty** (no results for this filter): two lines of `text-small` and a clear
-  filters link. No display type, no artwork. The user is mid-task and does not want a
-  moment.
+  filters link. No display type, no artwork, no plate. The user is mid-task and does not
+  want a moment.
 
 ### Skeleton
 
@@ -625,6 +775,42 @@ sidebar auto-collapse.
 | `--ease-out-quint` | `cubic-bezier(0.22, 1, 0.36, 1)` | Entrances |
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | State transitions |
 | `--ease-in-out-soft` | `cubic-bezier(0.65, 0, 0.35, 1)` | Reversible movement |
+
+### Using the duration tokens
+
+Tailwind v4 has no theme namespace for named transition durations — `--duration-*` cannot
+become a `duration-fast` utility the way `--color-*` becomes `bg-*`. The tokens therefore
+live in a plain `:root` block rather than in `@theme`, and are referenced through an
+arbitrary value:
+
+```html
+<button class="transition-colors duration-[var(--duration-fast)] ease-standard">
+```
+
+**That is the standard pattern, not a workaround.** Never write `duration-150`: a literal
+is untethered from the scale and will not follow a change to the token. The easing tokens
+*are* in `@theme`, so `ease-standard`, `ease-out-quint` and `ease-in-out-soft` are real
+utilities and should be written as such.
+
+### The `enter` utility
+
+The single fade-and-rise permitted on moderate-ambition surfaces. Defined in `globals.css`
+as `@keyframes settled-enter` plus `@utility enter`:
+
+```css
+@utility enter {
+  animation: settled-enter var(--duration-slow) var(--ease-out-quint) both;
+}
+```
+
+Opacity 0 → 1 with an 8px rise, 380ms. `both` holds the start frame so the element
+cannot flash at full opacity before the animation runs.
+
+**Permitted on:** login, empty states, error pages — one element, once.
+**Forbidden on:** dashboard, ledger, tables, forms, settings (§2). If a screen is opened
+more than once, it does not animate in.
+
+The reduced-motion block collapses it to 1ms, so the element appears without movement.
 
 **Landing** may use staggered reveals (60–80ms stride), scroll-linked parallax on
 background plate work, and a counting animation on headline figures.

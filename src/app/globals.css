@@ -30,13 +30,20 @@
                               maximum this ground allows, and dense small text at
                               that level halates over a long read. */
   --fg-secondary: #aab2ba; /*  8.69:1 on base */
-  --fg-muted: #7d868f;     /*  5.04:1 on base, 4.63:1 on raised */
+  --fg-muted: #8a939c;     /*  5.98 base / 5.49 raised / 5.01 overlay.
+                              Raised from #7d868f, which cleared 4.5:1 only
+                              against bg-base and failed as placeholder text on
+                              an overlay (4.23:1). */
 
   /* -- lines ------------------------------------------------------------- */
   --line-subtle: #2f3843;  /* 1.57:1 — row rules, dividers. At the old #242c36
                               (1.32:1) the rule dissolved over a long column. */
   --line-default: #30363d; /* card and container edges */
-  --line-strong: #5f6771;  /* 3.26:1 — REQUIRED for control boundaries */
+  --line-strong: #6d757f;  /* 4.00 base / 3.67 raised / 3.35 overlay.
+                              Raised from #5f6771, which cleared 3:1 only on
+                              bg-base (3.26) and failed on bg-raised (2.99) and
+                              bg-overlay (2.73) - i.e. on every container a form
+                              actually sits in. REQUIRED for control boundaries. */
 
   /* -- accent: copper ---------------------------------------------------- */
   --accent: #d7935e;        /* 7.31:1 on base */
@@ -299,10 +306,12 @@
   --text-display--letter-spacing: -0.022em;
   --text-display--font-weight: 400;
 
+  /* Display face (Newsreader). Weight 500 because 600 is not in the loaded
+     range - see docs/design-system.md 5. Pair with font-display. */
   --text-h1: 2.125rem;
   --text-h1--line-height: 1.16;
   --text-h1--letter-spacing: -0.018em;
-  --text-h1--font-weight: 600;
+  --text-h1--font-weight: 500;
 
   --text-h2: 1.5rem;
   --text-h2--line-height: 1.25;
@@ -392,27 +401,35 @@
    Base
    ========================================================================== */
 
-body {
-  background: var(--bg-base);
-  color: var(--fg-primary);
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
+/* These MUST stay inside @layer base.
+   Tailwind puts generated utilities in the `utilities` layer, and an unlayered
+   rule beats every layered rule regardless of specificity. Left unlayered, the
+   :focus-visible rule below silently overrode `ring-inverse` on the primary
+   button, painting a copper ring on a copper fill at 1.00:1 - exactly the
+   failure ring-inverse exists to prevent. */
+@layer base {
+  body {
+    background: var(--bg-base);
+    color: var(--fg-primary);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
 
-::selection {
-  background: var(--accent);
-  color: var(--accent-fg);
-}
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
 
-/* Every interactive element, one ring. :focus-visible only — never :focus, so
-   pointer users do not get a ring on click. */
-:focus-visible {
-  outline: none;
-  box-shadow: var(--ring-focus);
-  border-radius: var(--radius-sm);
+  /* Every interactive element, one ring. :focus-visible only - never :focus, so
+     pointer users do not get a ring on click. Overridable by `ring-inverse`. */
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--ring-focus);
+    border-radius: var(--radius-sm);
+  }
 }
 
 /* ==========================================================================
@@ -446,6 +463,38 @@ body {
 @utility rule-double {
   border-top: 1px solid var(--line-strong);
   box-shadow: 0 3px 0 -2px var(--line-subtle);
+}
+
+/* --------------------------------------------------------------------------
+   Entrance animation — the single fade-and-rise permitted on moderate-ambition
+   surfaces (login, empty states, error pages) per docs/design-system.md §2.
+   NOT for application surfaces: the dashboard and ledger get no entrance.
+   The reduced-motion block below collapses this to 1ms.
+   -------------------------------------------------------------------------- */
+
+@keyframes settled-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility enter {
+  animation: settled-enter var(--duration-slow) var(--ease-out-quint) both;
+}
+
+/* Focus ring for controls filled with the accent, where copper-on-copper would
+   vanish. Pairs with the global :focus-visible rule, which it overrides on
+   specificity. */
+@utility ring-inverse {
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-focus-inverse);
+  }
 }
 
 /* ==========================================================================
