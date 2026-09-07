@@ -230,9 +230,9 @@
   /* -- fonts ------------------------------------------------------------
      The --font-*-face variables are produced by next/font in layout.tsx.
      Fallbacks are real fonts, so the app is legible before that lands. */
-  --font-display: var(--font-newsreader), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  --font-sans: var(--font-plex-sans), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: var(--font-plex-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-display: var(--font-newsreader, "Iowan Old Style"), "Palatino Linotype", Georgia, serif;
+  --font-sans: var(--font-plex-sans, "Segoe UI"), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-plex-mono, "SFMono-Regular"), Consolas, "Liberation Mono", monospace;
 
   /* -- surfaces --------------------------------------------------------- */
   --color-surface: var(--bg-base);
