@@ -231,6 +231,37 @@ export const reminders = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* loginAttempts                                                              */
+/* -------------------------------------------------------------------------- */
+
+export const loginAttempts = pgTable(
+  'login_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /**
+     * Namespaced key, never a bare value: 'ip:102.89.34.7' or
+     * 'email:accounts@molekschools.ng'. The prefix keeps the two counters in
+     * separate spaces so a crafted email can never collide with an IP counter.
+     */
+    identifier: text('identifier').notNull(),
+    attemptedAt: timestamp('attempted_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // The rate check is always "this identifier, within the window", so the
+    // composite in this order is what actually serves it — a standalone
+    // identifier index would still scan every historical attempt for that key.
+    index('login_attempts_identifier_attempted_at_idx').on(
+      t.identifier,
+      t.attemptedAt,
+    ),
+    // Serves the purge sweep, which filters on time alone.
+    index('login_attempts_attempted_at_idx').on(t.attemptedAt),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /* fxRates                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -325,6 +356,9 @@ export type NewReminder = typeof reminders.$inferInsert;
 
 export type FxRate = typeof fxRates.$inferSelect;
 export type NewFxRate = typeof fxRates.$inferInsert;
+
+export type LoginAttempt = typeof loginAttempts.$inferSelect;
+export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type InvoiceStatus = (typeof invoiceStatusEnum.enumValues)[number];
