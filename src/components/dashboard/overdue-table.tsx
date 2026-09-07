@@ -38,7 +38,7 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
             <tr>
               <th
                 scope="col"
-                className="sticky left-0 top-0 z-20 bg-surface px-4 py-2.5 text-left text-micro font-medium uppercase text-ink-muted"
+                className="sticky left-0 top-0 z-20 bg-surface px-4 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
               >
                 Invoice
               </th>
@@ -70,7 +70,12 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
               >
                 {/* Pinned. Needs its own opaque ground or scrolled cells show
                     through, and must repeat the hover so the row reads as one. */}
-                <td className="money sticky left-0 z-10 h-11 bg-surface px-4 text-small text-ink group-hover:bg-row-hover">
+                {/* whitespace-nowrap is load-bearing: the pinned column gets
+                    whatever width the 720px table minimum leaves it, which at
+                    narrow widths is under 100px. Wrapping an invoice number
+                    across two lines pushed the row from 44px to 58px and broke
+                    the scan down the amount column. */}
+                <td className="money sticky left-0 z-10 h-11 bg-surface px-4 text-small whitespace-nowrap text-ink group-hover:bg-row-hover">
                   {invoice.number}
                 </td>
                 <td className="h-11 px-3 text-small whitespace-nowrap text-ink">

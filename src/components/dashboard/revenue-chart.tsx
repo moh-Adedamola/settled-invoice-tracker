@@ -11,6 +11,8 @@ import {
   YAxis,
 } from 'recharts';
 
+import { formatCompactMajor } from '@/lib/format';
+
 /**
  * Bars, not a line. The data is a magnitude per discrete period and the months
  * are compared against each other, not read as a continuous signal — and a line
@@ -28,7 +30,6 @@ export type RevenuePoint = {
   monthLabel: string;
   plotMajor: number;
   formatted: string;
-  tick: string;
   paymentCount: number;
   isPartial: boolean;
 };
@@ -55,8 +56,20 @@ export function RevenueChart({
 
       {/* The SVG is decorative to assistive tech; the table below carries the
           same figures. A chart alone is unreadable to a screen reader. */}
+      {/*
+        `initialDimension` is required, not optional. ResponsiveContainer
+        defaults to {width:-1,height:-1} and renders NOTHING until it has
+        measured the DOM — so the server HTML contains an empty plot area and
+        the chart only appears after hydration. On a slow connection that is a
+        visibly blank card. Seeding a dimension makes the bars part of the
+        first paint; the measured size then corrects it.
+      */}
       <div aria-hidden="true" className="h-[240px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          initialDimension={{ width: 900, height: 240 }}
+        >
           <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
             <CartesianGrid
               stroke="var(--chart-grid)"
@@ -73,8 +86,11 @@ export function RevenueChart({
                 fontFamily: 'var(--font-mono)',
               }}
             />
+            {/* No dataKey: the Y axis is a value scale, and the previous
+                tickFormatter indexed into `data` by TICK index, which is not a
+                row index — it produced labels unrelated to the gridlines. */}
             <YAxis
-              width={56}
+              width={60}
               tickLine={false}
               axisLine={false}
               tick={{
@@ -82,10 +98,7 @@ export function RevenueChart({
                 fontSize: 11,
                 fontFamily: 'var(--font-mono)',
               }}
-              tickFormatter={(_value: number, index: number) =>
-                data[index]?.tick ?? ''
-              }
-              dataKey="plotMajor"
+              tickFormatter={(value: number) => formatCompactMajor(value, currency)}
             />
             <Tooltip
               cursor={{ fill: 'var(--row-hover)' }}

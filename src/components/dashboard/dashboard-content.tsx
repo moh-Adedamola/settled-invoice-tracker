@@ -6,7 +6,7 @@ import {
   getRevenueByMonth,
   getUnmatchedPayments,
 } from '@/lib/queries/dashboard';
-import { formatCompactMajor, formatMinor } from '@/lib/format';
+import { formatMinor } from '@/lib/format';
 
 import { ActivityFeed } from './activity-feed';
 import { KpiRow } from './kpi-row';
@@ -49,7 +49,6 @@ export async function DashboardContent({ readOnly }: { readOnly: boolean }) {
       ),
       plotMajor: major,
       formatted: formatMinor(month.totalMinor, month.currency),
-      tick: formatCompactMajor(major, month.currency),
       paymentCount: month.paymentCount,
       isPartial: month.isPartial,
     };
@@ -63,7 +62,10 @@ export async function DashboardContent({ readOnly }: { readOnly: boolean }) {
 
       <OverdueTable invoices={overdue} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* items-start: grid children stretch to the tallest by default, which
+          left the provider card with ~300px of dead space below its four bars.
+          Each card should be the height of its own content. */}
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <ProviderBreakdown providers={providers} />
         <ActivityFeed entries={activity} />
       </div>
