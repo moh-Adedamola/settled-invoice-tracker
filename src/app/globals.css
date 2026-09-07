@@ -63,6 +63,13 @@
   --status-pending-bg: #102638;
   --status-pending-line: #2e5f84;
 
+  /* partial: 4.59:1 on its own ground, 5.51:1 on base. Adding an eighth state
+     leaves the CVD floor exactly where the seven-state palette had it
+     (8.5 deutan / 8.4 protan) - partial is never the binding pair. */
+  --status-partial-fg: #9d8c19;
+  --status-partial-bg: #2a2400;
+  --status-partial-line: #51480f;
+
   --status-overdue-fg: #fed261;
   --status-overdue-bg: #2f2200;
   --status-overdue-line: #7a5c14;
@@ -131,6 +138,10 @@
   --status-pending-bg: #dcf0fb;
   --status-pending-line: #93c2e0;
 
+  --status-partial-fg: #2f2903;
+  --status-partial-bg: #f4f1de;
+  --status-partial-line: #d6d2ba;
+
   --status-overdue-fg: #846500;
   --status-overdue-bg: #fbefd0;
   --status-overdue-line: #d3b675;
@@ -195,6 +206,10 @@
     --status-pending-fg: #0f69a4;
     --status-pending-bg: #dcf0fb;
     --status-pending-line: #93c2e0;
+
+    --status-partial-fg: #2f2903;
+    --status-partial-bg: #f4f1de;
+    --status-partial-line: #d6d2ba;
 
     --status-overdue-fg: #846500;
     --status-overdue-bg: #fbefd0;
@@ -273,6 +288,9 @@
   --color-pending: var(--status-pending-fg);
   --color-pending-bg: var(--status-pending-bg);
   --color-pending-line: var(--status-pending-line);
+  --color-partial: var(--status-partial-fg);
+  --color-partial-bg: var(--status-partial-bg);
+  --color-partial-line: var(--status-partial-line);
   --color-overdue: var(--status-overdue-fg);
   --color-overdue-bg: var(--status-overdue-bg);
   --color-overdue-line: var(--status-overdue-line);
@@ -481,6 +499,16 @@
     opacity: 1;
     transform: none;
   }
+}
+
+/* Skeleton shimmer (§7). A translating gradient rather than a pulse, so the
+   block keeps a constant luminance and does not flash. Reduced motion removes
+   it outright via motion-reduce:animate-none at the call site, leaving a static
+   block — the spec asks for removal here, not a slower loop. */
+
+@keyframes settled-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }
 
 @utility enter {

@@ -126,7 +126,36 @@ the table above records. When adding a surface token, re-measure these two again
 
 ### 3.2 Status
 
-Seven states, each with foreground, subtle background and border.
+Eight states, each with foreground, subtle background and border.
+
+**Schema enums map onto these presentation states.** The database carries ten
+values across two enums; this table is the only place the mapping is defined,
+and it is implemented once in `src/components/ui/status-badge.tsx`.
+
+| Schema value | Enum | Presentation state | Label shown |
+| --- | --- | --- | --- |
+| `draft` | invoice | `draft` | Draft |
+| `sent` | invoice | `pending` | Sent |
+| `partial` | invoice | **`partial`** | Partial |
+| `paid` | invoice | `paid` | Paid |
+| `overdue` | invoice | `overdue` | Overdue |
+| `void` | invoice | `void` | Void |
+| `succeeded` | payment | `paid` | Succeeded |
+| `pending` | payment | `pending` | Pending |
+| `failed` | payment | `failed` | Failed |
+| `refunded` | payment | `refunded` | Refunded |
+
+Two values fold into an existing state because they are synonyms of it, not
+distinct facts: an invoice that is `sent` and a payment that is `pending` are
+both money in flight, and `succeeded` is what `paid` means on a payment. The
+label keeps the schema's own word, so a badge never misreports the record it
+came from.
+
+**`partial` is not one of those.** It gained its own token because money has
+actually arrived, which is a different fact from an invoice merely being
+outstanding, and the two lead to different collection decisions: you chase a
+`sent` invoice and you reconcile a `partial` one. Folding it into `pending`
+made the badge lie about the balance.
 
 **Dark**
 
@@ -134,6 +163,7 @@ Seven states, each with foreground, subtle background and border.
 | --- | --- | --- | --- | --- | --- |
 | paid | `#87e8c4` | `#0d2a20` | `#2f6353` | **10.50:1** | 12.76:1 |
 | pending | `#5699cf` | `#102638` | `#2e5f84` | **5.05:1** | 6.09:1 |
+| partial | `#9d8c19` | `#2a2400` | `#51480f` | **4.59:1** | 5.51:1 |
 | overdue | `#fed261` | `#2f2200` | `#7a5c14` | **10.82:1** | 12.97:1 |
 | failed | `#fd9195` | `#3a181a` | `#8a4046` | **7.29:1** | 8.58:1 |
 | refunded | `#ddc1ff` | `#2a1d38` | `#6b4d94` | **9.87:1** | 11.68:1 |
@@ -146,6 +176,7 @@ Seven states, each with foreground, subtle background and border.
 | --- | --- | --- | --- | --- | --- |
 | paid | `#07553f` | `#dcf6ec` | `#8dc9b4` | **7.75:1** | 8.31:1 |
 | pending | `#0f69a4` | `#dcf0fb` | `#93c2e0` | **5.00:1** | 5.53:1 |
+| partial | `#2f2903` | `#f4f1de` | `#d6d2ba` | **12.84:1** | 13.74:1 |
 | overdue | `#846500` | `#fbefd0` | `#d3b675` | **4.78:1** | 5.15:1 |
 | failed | `#9a0a2c` | `#fde7ea` | `#e2949f` | **7.25:1** | 8.06:1 |
 | refunded | `#622c91` | `#f2e9fb` | `#bfa0da` | **7.79:1** | 8.64:1 |
@@ -159,11 +190,25 @@ Every pair clears AA in both themes. The tightest is light `void` at 4.60:1.
 Statuses are separated on **three** axes — hue, lightness and chroma — never hue alone.
 Minimum pairwise distance in OKLab (ΔE ×100; JND ≈ 2):
 
+Measured across all **eight** states:
+
 | | Dark | Light |
 | --- | --- | --- |
 | Normal | 9.1 (pending/void) | 8.5 (pending/draft) |
 | Deuteranopia | **8.5** (pending/void) | **7.6** (paid/failed) |
 | Protanopia | **8.4** (refunded/draft) | **7.7** (draft/void) |
+
+**Adding `partial` cost nothing.** The eighth state was solved for rather than
+chosen: a hue sweep over both themes, maximising the worst-case separation
+against the seven locked foregrounds subject to AA on its own badge ground and
+on the page ground. The olive band (OKLCH hue 100-112) is the only family
+outside the red and amber ones where both themes keep their existing floor
+exactly — `partial` is never the binding pair in either. The red-orange family
+scored equally but sits beside `failed`, which is semantically wrong for a state
+that means progress.
+
+The palette is now close to saturated. Adding a *ninth* status will lower a
+floor; when that day comes, prefer a non-colour distinction over a new hue.
 
 **Deviation, stated plainly: my working bar was ΔE ≥ 8 and the light theme lands at 7.6.**
 It is ~3.8× JND and comfortably distinguishable, but it is under my own target and I am
@@ -208,6 +253,8 @@ const STATUS = {
 | --- | --- | --- |
 | paid | `●` filled circle | Settled, closed |
 | pending | `◐` half circle | In flight |
+| partial | `½` | Part paid — the only numeric marker, and unmistakable at 10px where a
+half-filled shape would not be |
 | overdue | `▲` filled triangle | Needs action — the only triangle |
 | failed | `✕` cross | Terminal failure |
 | refunded | `↺` reverse arrow | Money went back |
@@ -333,16 +380,29 @@ made literal, and it is instantly recognisable.
 | `text-display` | 56px | 1.04 | 400 | −0.022em | Display | Landing hero only |
 | `text-h1` | 34px | 1.16 | 500 | −0.018em | **Display** | Wordmark, empty-state headline — **`(marketing)` only** |
 | `text-h2` | 24px | 1.25 | 600 | −0.014em | Sans | Page title, section, modal title, in-app empty state — **the ceiling in `(app)`** |
-| `text-h3` | 18px | 1.35 | 600 | −0.008em | Sans | Card title, KPI label |
+| `text-h3` | 18px | 1.35 | 600 | −0.008em | Sans | Card and section title |
 | `text-h4` | 15px | 1.4 | 600 | −0.003em | Sans | Subsection, form group |
 | `text-body` | 14px | 1.55 | 400 | 0 | Sans | Default |
 | `text-small` | 13px | 1.45 | 400 | 0.002em | Sans | Table cells, help text |
-| `text-micro` | 11px | 1.3 | 500 | 0.06em | Sans, uppercase | Column headers, metadata |
+| `text-micro` | 11px | 1.3 | 500 | 0.06em | Sans, uppercase | Column headers, form labels, **KPI labels**, metadata |
 
-KPI figures on the dashboard use Plex Mono at `text-h1` **size**, weight 500 — the one
-place the mono appears large, and the dashboard's typographic signature. Note this borrows
-the size token only, paired with `font-mono`; it is not the display face, and it is the
-sole exception to the `(marketing)`-only rule below.
+KPI figures use Plex Mono — the one place the mono appears large, and the
+dashboard's typographic signature. Size depends on how many tiles share the row:
+
+| Tiles in the row | Figure size |
+| --- | --- |
+| 1-3 | `text-h1` (34px) |
+| 4 or more | **`text-h2` (24px)** |
+
+The dashboard KPI row carries five tiles, so it is `text-h2`. This is a
+correction: `text-h1` was specified without accounting for full-precision
+currency. `₦80,164,039.41` at 34px mono is roughly 350px wide, and five tiles on
+a 1600px page get about 300px each — the figures collided with their own tiles.
+Money is never abbreviated on a KPI tile, so the type has to give way.
+
+Where `text-h1` is used for a figure it borrows the size token only, paired with
+`font-mono`; it is not the display face, and it is the sole exception to the
+`(marketing)`-only rule below.
 
 `text-h1` is set in **Newsreader**. This resolves a contradiction found during the login
 build: the table above previously said Sans while §7's empty state specified a Newsreader
@@ -663,6 +723,52 @@ A link that would navigate away from unsaved work is a button instead, so it can
 `text-small` / `fg-secondary`; header separated by 1px `line-subtle` only when the card
 contains a list or table.
 
+### KPI stat tile
+
+The dashboard's headline figures. A card, not a new primitive: `bg-surface-raised`,
+`radius-md`, 1px `--line-default`, 16px padding, stacked `gap-1.5`.
+
+| Slot | Treatment |
+| --- | --- |
+| Label | `text-micro` uppercase `--fg-muted` — the same voice as a column header |
+| Figure | `money` at `text-h2` (§5 gives the size-by-tile-count rule), `--fg-primary` |
+| Currency mark | `currency-mark` inside the figure, so marks and digits align down a column of tiles |
+| Note | optional, `text-small` `--fg-muted`, one or two lines |
+
+Rules:
+
+- **Never abbreviate money on a tile.** `₦80.2m` is not reconcilable against a
+  ledger, and the point of the figure is that someone can check it. If it does
+  not fit, the type shrinks (§5), not the number.
+- **A derived or converted figure must say so.** The outstanding tile carries a
+  `≈` prefix and a note reading "approx. at live FX", with the exact
+  per-currency amounts beneath it. A mixed-currency total is rate-dependent, and
+  presenting it as exact would misstate the precision rather than round it.
+- A tile whose figure is a **count** rather than money still sets the numeral in
+  `money`, so it aligns with its neighbours.
+- Colour on the figure only where the count *is* the state — the overdue tile
+  uses `--overdue` with its `▲` marker. Everything else is `--fg-primary`.
+- No hover, no shadow, not a link. A tile is a readout.
+
+### Inline page banner
+
+A persistent, page-level notice — distinct from a toast, which is transient and
+floats. The banner sits in the document flow directly beneath the app header,
+spans the shell, and does not dismiss.
+
+`bg-surface-raised`, a 1px `--line-subtle` bottom border only (no radius and no
+side borders, because it spans the shell), `px-6 py-2.5`, `text-small` in
+`--fg-secondary`, a `--fg-muted` glyph leading, and any link in `--accent`
+underlined.
+
+Use it for a standing condition the reader needs in order to interpret the page:
+the demo banner ("this data resets nightly"), a degraded-integration warning, a
+read-only notice. **Do not** use it for the outcome of an action — that is a
+toast — or for a validation error, which belongs beside its field.
+
+A warning variant carries status colour as a 2px left rule, the same pattern as
+the toast. The neutral informational form has no rule at all.
+
 ### Modal
 
 `radius-lg` · `bg-overlay` · `shadow-lg` · max-width 520 (confirm) / 720 (form) ·
@@ -757,6 +863,22 @@ signal more content. Card-stacking is correct for feeds; this is not a feed.
 The public demo dashboard is the exception: its summary cards stack normally, since they
 are cards already rather than a table.
 
+**Below 900px the sidebar becomes a horizontal scrolling strip, not an overlay
+drawer.** This is a decision, not an unfinished drawer.
+
+The nav has five fixed destinations and no hierarchy. A drawer would introduce a
+mode — open/closed state, a scrim, focus trapping, an escape key, a
+restore-focus path — to reach five links that fit on one line. The strip keeps
+every destination visible and one tap away, and costs no state at all.
+
+Revisit it when the nav outgrows one line at 360px, or when it gains nesting. At
+that point a drawer earns its complexity; today it would only add failure modes.
+
+The strip: `bg-surface-raised`, 1px `--line` bottom border, `overflow-x-auto`,
+4px item gap, 32px targets, and the same active treatment as the rail
+(`--accent-subtle` ground). It replaces the rail rather than sitting alongside
+it.
+
 **Breakpoints** `sm` 640 · `md` 768 · `lg` 1024 · `xl` 1280 · `2xl` 1536 (Tailwind
 defaults), plus two app-specific thresholds: **900px** sidebar → drawer, **1280px**
 sidebar auto-collapse.
@@ -791,6 +913,23 @@ arbitrary value:
 is untethered from the scale and will not follow a change to the token. The easing tokens
 *are* in `@theme`, so `ease-standard`, `ease-out-quint` and `ease-in-out-soft` are real
 utilities and should be written as such.
+
+### The `settled-shimmer` keyframe
+
+Skeleton loading (§7). A gradient translated across the block rather than an opacity
+pulse, so the block holds a constant luminance instead of flashing:
+
+```css
+@keyframes settled-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+```
+
+Applied as `animate-[settled-shimmer_1.4s_linear_infinite]` on an absolutely
+positioned gradient overlay inside the block. Pair it with
+`motion-reduce:animate-none` at the call site: §7 asks for the shimmer to be
+*removed* under reduced motion, not slowed, leaving a static block.
 
 ### The `enter` utility
 
