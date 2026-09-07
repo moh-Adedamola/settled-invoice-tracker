@@ -1,26 +1,474 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   Settled — design tokens
+   Reference: intaglio security printing (banknote guilloché, engraved share
+   certificates) and the ruled ledger book. Ink ground, copper accent.
+   Full rationale: docs/design-system.md
+
+   Dark is the default. Light is opt-in via [data-theme="light"], or via the
+   OS preference when the user has not chosen explicitly.
+
+   Hex is the source of truth: every value below was measured for WCAG contrast
+   and for deuteranopia/protanopia separation as it actually renders in sRGB.
+   Do not write a hex anywhere else in the codebase.
+   ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  /* -- surfaces ---------------------------------------------------------- */
+  --bg-base: #0e1319;      /* page ground — printing ink, not neutral black */
+  --bg-inset: #0b1015;     /* wells: table body, code, input interiors      */
+  --bg-raised: #161c24;    /* cards, sidebar, sticky headers                */
+  --bg-overlay: #1d242e;   /* modals, popovers, dropdowns                   */
+
+  /* -- foreground -------------------------------------------------------- */
+  --fg-primary: #ebeff4;   /* 16.15:1 — headings, KPI figures, large text */
+  --fg-body: #d3dbe3;      /* 13.33:1 — table cells and running text at 13-14px.
+                              Deliberately below fg-primary: 16:1 is 87% of the
+                              maximum this ground allows, and dense small text at
+                              that level halates over a long read. */
+  --fg-secondary: #aab2ba; /*  8.69:1 on base */
+  --fg-muted: #7d868f;     /*  5.04:1 on base, 4.63:1 on raised */
+
+  /* -- lines ------------------------------------------------------------- */
+  --line-subtle: #2f3843;  /* 1.57:1 — row rules, dividers. At the old #242c36
+                              (1.32:1) the rule dissolved over a long column. */
+  --line-default: #30363d; /* card and container edges */
+  --line-strong: #5f6771;  /* 3.26:1 — REQUIRED for control boundaries */
+
+  /* -- accent: copper ---------------------------------------------------- */
+  --accent: #d7935e;        /* 7.31:1 on base */
+  --accent-hover: #e8a675;
+  --accent-active: #c4824f;
+  --accent-subtle: #33220f; /* tinted ground for selected rows / nav */
+  --row-hover: #243040;     /* 1.40:1 — NOT bg-raised, which is only 1.09:1 and
+                               too weak to track which row you are on. */
+  --accent-fg: #0e1319;     /* 7.31:1 — ink sits on a copper fill */
+
+  /* -- status: fg / subtle bg / border ----------------------------------- */
+  --status-paid-fg: #87e8c4;
+  --status-paid-bg: #0d2a20;
+  --status-paid-line: #2f6353;
+
+  --status-pending-fg: #5699cf;
+  --status-pending-bg: #102638;
+  --status-pending-line: #2e5f84;
+
+  --status-overdue-fg: #fed261;
+  --status-overdue-bg: #2f2200;
+  --status-overdue-line: #7a5c14;
+
+  --status-failed-fg: #fd9195;
+  --status-failed-bg: #3a181a;
+  --status-failed-line: #8a4046;
+
+  --status-refunded-fg: #ddc1ff;
+  --status-refunded-bg: #2a1d38;
+  --status-refunded-line: #6b4d94;
+
+  --status-draft-fg: #95b2d1;
+  --status-draft-bg: #1d2530;
+  --status-draft-line: #44546a;
+
+  --status-void-fg: #818b96;
+  --status-void-bg: #1b1f24;
+  --status-void-line: #3c444d;
+
+  /* -- chart ------------------------------------------------------------- */
+  --chart-stripe: #a793f4;
+  --chart-paystack: #57c8e6;
+  --chart-flutterwave: #f3ae5f;
+  --chart-manual: #808a95;
+  --chart-positive: #87e8c4;
+  --chart-negative: #fd9195;
+  --chart-grid: #242c36;
+  --chart-axis: #7d868f;
+  /* Partial current month: same hue, half weight, hatched. Never a solid bar. */
+  --chart-partial-opacity: 0.42;
+  --chart-partial-dash: 4 3;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Explicit light choice wins over everything. */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-base: #f9f8f5;      /* ledger paper, not white */
+  --bg-inset: #f0efeb;
+  --bg-raised: #fdfdfb;
+  --bg-overlay: #ffffff;
+
+  --fg-primary: #192029;   /* 15.45:1 on base */
+  --fg-body: #192029;      /* dark-on-light does not halate; no dimming needed */
+  --fg-secondary: #4c535d; /*  7.32:1 on base */
+  --fg-muted: #6b727a;     /*  4.58:1 on base */
+
+  --line-subtle: #d9d6cf;  /* 1.37:1 */
+  --line-default: #d3d1cb;
+  --line-strong: #8d8a83;  /* 3.24:1 */
+
+  --accent: #9a541b;        /* 5.41:1 on base */
+  --accent-hover: #87470f;
+  --accent-active: #77400c;
+  --accent-subtle: #faeede;
+  --accent-fg: #fdfdfb;     /* 5.64:1 — paper sits on a copper fill */
+  --row-hover: #eae8e2;     /* 1.15:1 — light themes cannot reach the dark
+                               theme's 1.40; the text anchors the row instead */
+
+  --status-paid-fg: #07553f;
+  --status-paid-bg: #dcf6ec;
+  --status-paid-line: #8dc9b4;
+
+  --status-pending-fg: #0f69a4;
+  --status-pending-bg: #dcf0fb;
+  --status-pending-line: #93c2e0;
+
+  --status-overdue-fg: #846500;
+  --status-overdue-bg: #fbefd0;
+  --status-overdue-line: #d3b675;
+
+  --status-failed-fg: #9a0a2c;
+  --status-failed-bg: #fde7ea;
+  --status-failed-line: #e2949f;
+
+  --status-refunded-fg: #622c91;
+  --status-refunded-bg: #f2e9fb;
+  --status-refunded-line: #bfa0da;
+
+  --status-draft-fg: #3e5873;
+  --status-draft-bg: #e9eef4;
+  --status-draft-line: #a8b6c6;
+
+  --status-void-fg: #646d77;
+  --status-void-bg: #eef0f2;
+  --status-void-line: #bcc1c6;
+
+  --chart-stripe: #6d54b7;
+  --chart-paystack: #00829f;
+  --chart-flutterwave: #ad7227;
+  --chart-manual: #40474f;
+  --chart-positive: #07553f;
+  --chart-negative: #d05a63;
+  --chart-grid: #e8e6e1;
+  --chart-axis: #6b727a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* No explicit choice + OS prefers light. Mirrors [data-theme="light"] exactly;
+   kept as a separate rule so the toggle can always override it. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    color-scheme: light;
+
+    --bg-base: #f9f8f5;
+    --bg-inset: #f0efeb;
+    --bg-raised: #fdfdfb;
+    --bg-overlay: #ffffff;
+
+    --fg-primary: #192029;
+    --fg-body: #192029;
+    --fg-secondary: #4c535d;
+    --fg-muted: #6b727a;
+
+    --line-subtle: #d9d6cf;
+    --line-default: #d3d1cb;
+    --line-strong: #8d8a83;
+
+    --accent: #9a541b;
+    --accent-hover: #87470f;
+    --accent-active: #77400c;
+    --accent-subtle: #faeede;
+    --accent-fg: #fdfdfb;
+    --row-hover: #eae8e2;
+
+    --status-paid-fg: #07553f;
+    --status-paid-bg: #dcf6ec;
+    --status-paid-line: #8dc9b4;
+
+    --status-pending-fg: #0f69a4;
+    --status-pending-bg: #dcf0fb;
+    --status-pending-line: #93c2e0;
+
+    --status-overdue-fg: #846500;
+    --status-overdue-bg: #fbefd0;
+    --status-overdue-line: #d3b675;
+
+    --status-failed-fg: #9a0a2c;
+    --status-failed-bg: #fde7ea;
+    --status-failed-line: #e2949f;
+
+    --status-refunded-fg: #622c91;
+    --status-refunded-bg: #f2e9fb;
+    --status-refunded-line: #bfa0da;
+
+    --status-draft-fg: #3e5873;
+    --status-draft-bg: #e9eef4;
+    --status-draft-line: #a8b6c6;
+
+    --status-void-fg: #646d77;
+    --status-void-bg: #eef0f2;
+    --status-void-line: #bcc1c6;
+
+    --chart-stripe: #6d54b7;
+    --chart-paystack: #00829f;
+    --chart-flutterwave: #ad7227;
+    --chart-manual: #40474f;
+    --chart-positive: #07553f;
+    --chart-negative: #d05a63;
+    --chart-grid: #e8e6e1;
+    --chart-axis: #6b727a;
   }
 }
 
+/* ==========================================================================
+   Tailwind theme mapping
+   `inline` because every value is a var() that changes per theme — Tailwind
+   must emit the reference, not resolve it once at build time.
+   ========================================================================== */
+
+@theme inline {
+  /* -- fonts ------------------------------------------------------------
+     The --font-*-face variables are produced by next/font in layout.tsx.
+     Fallbacks are real fonts, so the app is legible before that lands. */
+  --font-display: var(--font-newsreader), "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-sans: var(--font-plex-sans), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-plex-mono), "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* -- surfaces --------------------------------------------------------- */
+  --color-surface: var(--bg-base);
+  --color-surface-inset: var(--bg-inset);
+  --color-surface-raised: var(--bg-raised);
+  --color-surface-overlay: var(--bg-overlay);
+
+  /* -- foreground ------------------------------------------------------- */
+  --color-ink: var(--fg-primary);
+  --color-ink-body: var(--fg-body);
+  --color-ink-secondary: var(--fg-secondary);
+  --color-ink-muted: var(--fg-muted);
+
+  /* -- lines ------------------------------------------------------------ */
+  --color-line-subtle: var(--line-subtle);
+  --color-line: var(--line-default);
+  --color-line-strong: var(--line-strong);
+
+  /* -- accent ----------------------------------------------------------- */
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-active: var(--accent-active);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-fg: var(--accent-fg);
+  --color-row-hover: var(--row-hover);
+
+  /* -- status ----------------------------------------------------------- */
+  --color-paid: var(--status-paid-fg);
+  --color-paid-bg: var(--status-paid-bg);
+  --color-paid-line: var(--status-paid-line);
+  --color-pending: var(--status-pending-fg);
+  --color-pending-bg: var(--status-pending-bg);
+  --color-pending-line: var(--status-pending-line);
+  --color-overdue: var(--status-overdue-fg);
+  --color-overdue-bg: var(--status-overdue-bg);
+  --color-overdue-line: var(--status-overdue-line);
+  --color-failed: var(--status-failed-fg);
+  --color-failed-bg: var(--status-failed-bg);
+  --color-failed-line: var(--status-failed-line);
+  --color-refunded: var(--status-refunded-fg);
+  --color-refunded-bg: var(--status-refunded-bg);
+  --color-refunded-line: var(--status-refunded-line);
+  --color-draft: var(--status-draft-fg);
+  --color-draft-bg: var(--status-draft-bg);
+  --color-draft-line: var(--status-draft-line);
+  --color-void: var(--status-void-fg);
+  --color-void-bg: var(--status-void-bg);
+  --color-void-line: var(--status-void-line);
+
+  /* -- chart ------------------------------------------------------------ */
+  --color-chart-stripe: var(--chart-stripe);
+  --color-chart-paystack: var(--chart-paystack);
+  --color-chart-flutterwave: var(--chart-flutterwave);
+  --color-chart-manual: var(--chart-manual);
+  --color-chart-positive: var(--chart-positive);
+  --color-chart-negative: var(--chart-negative);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+
+  /* -- type scale -------------------------------------------------------
+     display uses --font-display; everything else --font-sans. */
+  --text-display: 3.5rem;
+  --text-display--line-height: 1.04;
+  --text-display--letter-spacing: -0.022em;
+  --text-display--font-weight: 400;
+
+  --text-h1: 2.125rem;
+  --text-h1--line-height: 1.16;
+  --text-h1--letter-spacing: -0.018em;
+  --text-h1--font-weight: 600;
+
+  --text-h2: 1.5rem;
+  --text-h2--line-height: 1.25;
+  --text-h2--letter-spacing: -0.014em;
+  --text-h2--font-weight: 600;
+
+  --text-h3: 1.125rem;
+  --text-h3--line-height: 1.35;
+  --text-h3--letter-spacing: -0.008em;
+  --text-h3--font-weight: 600;
+
+  --text-h4: 0.9375rem;
+  --text-h4--line-height: 1.4;
+  --text-h4--letter-spacing: -0.003em;
+  --text-h4--font-weight: 600;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.55;
+  --text-body--letter-spacing: 0em;
+
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.45;
+  --text-small--letter-spacing: 0.002em;
+
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.3;
+  --text-micro--letter-spacing: 0.06em;
+  --text-micro--font-weight: 500;
+
+  /* -- radius: tight, engraved. Badges are stamps, not pills. ------------ */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* -- elevation --------------------------------------------------------
+     Dark lifts with background + border; light lifts with shadow.
+     Both define shadows so overlays read as detached in either theme. */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.36), 0 2px 4px -2px rgb(0 0 0 / 0.28);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.5), 0 4px 12px -4px rgb(0 0 0 / 0.34);
+
+  /* -- motion ----------------------------------------------------------- */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* Light lifts with a real shadow; dark keeps the near-black one defined above. */
+[data-theme="light"] {
+  --shadow-sm: 0 1px 2px rgb(25 32 41 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(25 32 41 / 0.10), 0 2px 4px -2px rgb(25 32 41 / 0.06);
+  --shadow-lg: 0 16px 40px -8px rgb(25 32 41 / 0.14), 0 4px 12px -4px rgb(25 32 41 / 0.08);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    --shadow-sm: 0 1px 2px rgb(25 32 41 / 0.06);
+    --shadow-md: 0 4px 12px -2px rgb(25 32 41 / 0.10), 0 2px 4px -2px rgb(25 32 41 / 0.06);
+    --shadow-lg: 0 16px 40px -8px rgb(25 32 41 / 0.14), 0 4px 12px -4px rgb(25 32 41 / 0.08);
+  }
+}
+
+/* ==========================================================================
+   Motion + focus tokens (plain properties — used directly in CSS)
+   ========================================================================== */
+
+:root {
+  --duration-instant: 80ms;  /* press / hover feedback */
+  --duration-fast: 140ms;    /* state change, tab rule, row hover */
+  --duration-normal: 220ms;  /* popover, dropdown, toast */
+  --duration-slow: 380ms;    /* modal, sheet, drawer */
+  --duration-expressive: 700ms; /* LANDING PAGE ONLY */
+
+  /* Two-part ring: an inner band in the page ground punches the accent away
+     from whatever sits underneath, so one definition works on every surface. */
+  --ring-offset: 2px;
+  --ring-width: 2px;
+  --ring-focus: 0 0 0 var(--ring-offset) var(--bg-base),
+                0 0 0 calc(var(--ring-offset) + var(--ring-width)) var(--accent);
+  /* For use on an accent-filled control, where copper-on-copper would vanish. */
+  --ring-focus-inverse: 0 0 0 var(--ring-offset) var(--accent-fg),
+                        0 0 0 calc(var(--ring-offset) + var(--ring-width)) var(--fg-primary);
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-base);
+  color: var(--fg-primary);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+/* Every interactive element, one ring. :focus-visible only — never :focus, so
+   pointer users do not get a ring on click. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+  border-radius: var(--radius-sm);
+}
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+
+/* Column-aligned figures. Required on every money cell in a table. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+/* The money signature: mono figures, tabular, slightly tightened. Use on any
+   amount, invoice number, provider id, or date that appears in a column. */
+@utility money {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  letter-spacing: -0.01em;
+}
+
+/* Currency mark set quieter than the figure it belongs to. */
+@utility currency-mark {
+  color: var(--fg-muted);
+  font-size: 0.85em;
+  padding-right: 0.15em;
+}
+
+/* Ledger signature: the double rule that closes a column of figures. Use on
+   table footers and section totals. Never decorative — it means "sum above". */
+@utility rule-double {
+  border-top: 1px solid var(--line-strong);
+  box-shadow: 0 3px 0 -2px var(--line-subtle);
+}
+
+/* ==========================================================================
+   Reduced motion
+   Collapses duration rather than removing transitions, so state changes still
+   read as changes. Shimmer and any transform-based entrance are cut entirely.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 1ms;
+    --duration-fast: 1ms;
+    --duration-normal: 1ms;
+    --duration-slow: 1ms;
+    --duration-expressive: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }
