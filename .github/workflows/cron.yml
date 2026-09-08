@@ -51,7 +51,10 @@ on:
     # - cron: '0 8 * * *'   # reminders
     #
     # - cron: '0 2 * * *'   # reconcile
-    # - cron: '0 3 * * *'   # reset-demo
+
+    # Daily 03:00 UTC = 04:00 Africa/Lagos. Deliberately after the small hours
+    # in Lagos and well clear of the 08:00 UTC reminder slot.
+    - cron: '0 3 * * *'   # reset-demo
 
   workflow_dispatch:
     inputs:
@@ -64,7 +67,7 @@ on:
           # - dispatch-outbound
           # - reminders
           # - reconcile
-          # - reset-demo
+          - reset-demo
 
 # The workflow reads nothing from the repository and writes nothing to it.
 permissions: {}
@@ -266,39 +269,65 @@ jobs:
   #           exit 1
   #         fi
 
-  # reset-demo:
-  #   name: Rebuild demo data
-  #   runs-on: ubuntu-latest
-  #   timeout-minutes: 15
-  #   if: >-
-  #     (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') ||
-  #     (github.event_name == 'workflow_dispatch' && inputs.job == 'reset-demo')
-  #   concurrency:
-  #     group: cron-reset-demo
-  #     cancel-in-progress: false
-  #   steps:
-  #     - name: Call /api/cron/reset-demo
-  #       env:
-  #         APP_URL: ${{ secrets.APP_URL }}
-  #         CRON_SECRET: ${{ secrets.CRON_SECRET }}
-  #         ENDPOINT: /api/cron/reset-demo
-  #       run: |
-  #         set -euo pipefail
-  #         if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
-  #           echo "::error::APP_URL and CRON_SECRET must both be set."
-  #           exit 1
-  #         fi
-  #         base="${APP_URL%/}"
-  #         response=$(curl -sS -X POST --max-time 600 \
-  #           --retry 1 --retry-delay 10 --retry-connrefused \
-  #           -H "Authorization: Bearer ${CRON_SECRET}" \
-  #           -H "content-type: application/json" \
-  #           -w '\n%{http_code}' "${base}${ENDPOINT}")
-  #         body=$(printf '%s' "${response}" | sed '$d')
-  #         code=$(printf '%s' "${response}" | tail -n 1)
-  #         echo "HTTP ${code}"
-  #         echo "${body}"
-  #         if [ "${code}" -lt 200 ] || [ "${code}" -ge 300 ]; then
-  #           echo "::error::reset-demo returned HTTP ${code}"
-  #           exit 1
-  #         fi
+  reset-demo:
+    name: Rebuild demo data
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.job == 'reset-demo')
+    concurrency:
+      group: cron-reset-demo
+      cancel-in-progress: false
+    steps:
+      - name: Call /api/cron/reset-demo
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ENDPOINT: /api/cron/reset-demo
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APP_URL:-}" ]; then
+            echo "::error::APP_URL secret is not set. See .github/workflows/cron.yml."
+            exit 1
+          fi
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::CRON_SECRET secret is not set. It must match the value in the app's environment."
+            exit 1
+          fi
+
+          base="${APP_URL%/}"
+          url="${base}${ENDPOINT}"
+          echo "POST ${url}"
+
+          # Longer --max-time than the drain: the reset purges and reinserts
+          # several hundred rows. Only one retry, and only for a connection
+          # failure — a reset that half-ran is not something to fire again
+          # blindly, and the endpoint returns 409 rather than retrying itself
+          # when it refuses to run.
+          response=$(curl -sS -X POST \
+            --max-time 600 \
+            --retry 1 --retry-delay 10 --retry-connrefused \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "content-type: application/json" \
+            -w '\n%{http_code}' \
+            "${url}")
+
+          body=$(printf '%s' "${response}" | sed '$d')
+          code=$(printf '%s' "${response}" | tail -n 1)
+
+          echo "HTTP ${code}"
+          echo "${body}"
+
+          # 409 means the reset refused to delete anything because live rows
+          # reference demo rows. Nothing was lost, but it needs a human.
+          if [ "${code}" = "409" ]; then
+            echo "::error::reset-demo refused to run — live rows reference demo rows. Nothing was deleted."
+            exit 1
+          fi
+
+          if [ "${code}" -lt 200 ] || [ "${code}" -ge 300 ]; then
+            echo "::error::reset-demo returned HTTP ${code}"
+            exit 1
+          fi
