@@ -36,8 +36,14 @@ type PaystackCustomer = {
   last_name?: unknown;
 };
 
+type PaystackCustomField = {
+  variable_name?: unknown;
+  value?: unknown;
+};
+
 type PaystackData = {
   id?: unknown;
+  domain?: unknown;
   reference?: unknown;
   amount?: unknown;
   currency?: unknown;
@@ -104,6 +110,60 @@ function timingSafeEqualHex(a: string, b: string): boolean {
   if (bufA.length !== bufB.length || bufA.length === 0) return false;
 
   return timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * Invoice reference, from metadata ONLY.
+ *
+ * `data.reference` is deliberately not consulted. It is Paystack's identifier
+ * for the *transaction*, not for an invoice, and treating it as one is
+ * actively dangerous rather than merely useless: many integrations derive the
+ * reference from an order or invoice id, so a reference that collides with a
+ * real invoice number would link the payment to an unrelated invoice and
+ * `refreshInvoiceStatus` would then mark that invoice paid or partial. Wrong,
+ * silent, and it moves money in the books.
+ *
+ * A merchant who wants a payment matched puts the invoice number in
+ * `metadata`, either as a key or through Paystack's `custom_fields` convention
+ * (`{ display_name, variable_name, value }`). Anything else returns undefined,
+ * and the payment lands in the unmatched queue where a human decides — which
+ * is exactly what that queue is for.
+ */
+const INVOICE_METADATA_KEYS = [
+  'invoice_number',
+  'invoiceNumber',
+  'invoice_ref',
+  'invoiceRef',
+  'invoice',
+];
+
+function extractInvoiceRef(data: PaystackData): string | undefined {
+  const metadata = asRecord(data.metadata);
+  if (!metadata) return undefined;
+
+  for (const key of INVOICE_METADATA_KEYS) {
+    const value = asString(metadata[key]);
+    if (value) return value;
+  }
+
+  // Paystack's checkout puts merchant-defined fields here rather than at the
+  // top level of metadata.
+  const custom = metadata.custom_fields;
+  if (Array.isArray(custom)) {
+    for (const entry of custom as PaystackCustomField[]) {
+      const name = asString(entry?.variable_name)?.toLowerCase();
+      if (!name) continue;
+      const matches = INVOICE_METADATA_KEYS.some(
+        (key) => key.toLowerCase() === name,
+      );
+      if (matches) {
+        const value = asString(entry?.value);
+        if (value) return value;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 export const paystackAdapter: GatewayAdapter = {
@@ -214,15 +274,18 @@ export const paystackAdapter: GatewayAdapter = {
     const last = asString(customer?.last_name);
     const name = [first, last].filter(Boolean).join(' ') || undefined;
 
-    const metadata = asRecord(data.metadata);
-    const invoiceRef =
-      asString(metadata?.invoice_number) ??
-      asString(metadata?.invoiceNumber) ??
-      asString(metadata?.invoice_ref) ??
-      asString(data.reference);
+    const invoiceRef = extractInvoiceRef(data);
 
     const authorization = asRecord(data.authorization) as PaystackAuthorization | null;
     const method = asString(data.channel) ?? asString(authorization?.channel);
+
+    /**
+     * `data.domain` is "test" or "live". Absent means live — see the note on
+     * `livemode` in the adapter contract for why the unknown case defaults that
+     * way rather than the other.
+     */
+    const domain = asString(data.domain)?.toLowerCase();
+    const livemode = domain !== 'test';
 
     return {
       providerEventId: `${eventName}:${asString(data.id) ?? providerPaymentId}`,
@@ -231,6 +294,7 @@ export const paystackAdapter: GatewayAdapter = {
       amountMinor,
       currency,
       occurredAt,
+      livemode,
       customer: {
         name,
         email: asString(customer?.email),

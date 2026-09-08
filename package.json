@@ -12,7 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "seed": "tsx scripts/seed.ts",
     "set-password": "tsx --conditions=react-server --env-file=.env.local scripts/set-password.ts",
-    "test-webhook": "tsx --conditions=react-server --env-file=.env.local scripts/test-webhook.ts"
+    "test-webhook": "tsx --conditions=react-server --env-file=.env.local scripts/test-webhook.ts",
+    "test-drain": "tsx --conditions=react-server --env-file=.env.local scripts/test-drain.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

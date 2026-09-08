@@ -30,6 +30,21 @@ export type NormalizedEvent = {
   /** When the payment happened, not when we received the webhook. */
   occurredAt: Date;
 
+  /**
+   * False for a gateway's test/sandbox mode.
+   *
+   * Named after Stripe's own field so the contract generalises. Records derived
+   * from a test event are written with `isDemo: true`, which puts them inside
+   * the nightly demo reset instead of accumulating in the real books forever.
+   *
+   * Adapters MUST default this to `true` when the payload carries no indicator.
+   * The asymmetry is deliberate: mistaking a live payment for a test one hands
+   * it to a purge that deletes real money records, while mistaking a test one
+   * for live leaves a little junk to tidy up. Only one of those is
+   * unrecoverable.
+   */
+  livemode: boolean;
+
   customer: {
     name?: string;
     email?: string;
