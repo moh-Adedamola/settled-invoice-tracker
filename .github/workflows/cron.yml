@@ -1,0 +1,304 @@
+name: Scheduled jobs
+
+# External scheduler for Settled's cron routes.
+#
+# Deliberately NOT Vercel Cron: there is no `crons` block in vercel.json and
+# there should not be one. Keeping the schedule here means it is versioned,
+# reviewable, runnable by hand, and portable if the app ever moves off Vercel.
+#
+# ---------------------------------------------------------------------------
+# Two things about GitHub's scheduler that are worth knowing before you rely
+# on it:
+#
+# 1. SCHEDULES ARE BEST-EFFORT, NOT GUARANTEED. Runs are queued on shared
+#    infrastructure and are routinely delayed by several minutes at busy times
+#    (the top of the hour is the worst). A run can also be dropped entirely
+#    under heavy load. That is acceptable here only because every job below is
+#    idempotent: the drain claims rows atomically and skips what is already
+#    processed, reminders are protected by the (invoice_id, sequence) unique
+#    constraint, and the demo reset rebuilds from scratch. A late run does the
+#    same work; a missed run is picked up by the next one. Do not add a job
+#    here that assumes it ran exactly once at exactly the right minute.
+#
+# 2. SCHEDULES ARE DISABLED AFTER 60 DAYS OF REPOSITORY INACTIVITY. GitHub
+#    switches off scheduled workflows in a repo with no commits for 60 days,
+#    and it emails the last committer rather than failing loudly. If cron
+#    silently stops months from now, check the Actions tab for the "this
+#    workflow was disabled" banner before debugging the app. Any commit
+#    re-enables it.
+#
+# Also: schedules only ever run from the DEFAULT BRANCH (main). Editing this
+# file on a branch changes nothing until it is merged.
+# ---------------------------------------------------------------------------
+
+on:
+  schedule:
+    # Every 15 minutes — process-events (and dispatch-outbound, once it exists).
+    - cron: '*/15 * * * *'
+
+    # The schedules below stay commented until their routes exist. A schedule
+    # whose job is commented out still creates an empty run in the Actions tab,
+    # and a schedule pointing at a route that 404s creates a red X every day —
+    # which is the fastest way to teach yourself to ignore this tab.
+    #
+    # Uncomment each one together with its job below.
+    #
+    # Daily 09:00 Africa/Lagos. GitHub cron is UTC-only, and Lagos is UTC+1
+    # with no daylight saving, so 08:00 UTC is 09:00 Lagos all year. That is
+    # not true of most zones — a Europe/London job would need the hour changed
+    # twice a year, which is a good reason to keep business-hours jobs pinned
+    # to a zone that does not shift.
+    # - cron: '0 8 * * *'   # reminders
+    #
+    # - cron: '0 2 * * *'   # reconcile
+    # - cron: '0 3 * * *'   # reset-demo
+
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run
+        type: choice
+        default: process-events
+        options:
+          - process-events
+          # - dispatch-outbound
+          # - reminders
+          # - reconcile
+          # - reset-demo
+
+# The workflow reads nothing from the repository and writes nothing to it.
+permissions: {}
+
+jobs:
+  process-events:
+    name: Drain webhook events
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.job == 'process-events')
+
+    # Never let two drains overlap. The drain is already safe against this —
+    # rows are claimed with FOR UPDATE SKIP LOCKED — but queueing runs rather
+    # than piling them up keeps the Actions tab readable.
+    concurrency:
+      group: cron-process-events
+      cancel-in-progress: false
+
+    steps:
+      - name: Call /api/cron/process-events
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ENDPOINT: /api/cron/process-events
+        run: |
+          set -euo pipefail
+
+          # A missing secret arrives as an empty string, which would otherwise
+          # produce a baffling curl error against "/api/cron/...".
+          if [ -z "${APP_URL:-}" ]; then
+            echo "::error::APP_URL secret is not set. See .github/workflows/cron.yml."
+            exit 1
+          fi
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::CRON_SECRET secret is not set. It must match the value in the app's environment."
+            exit 1
+          fi
+
+          base="${APP_URL%/}"          # tolerate a trailing slash in the secret
+          url="${base}${ENDPOINT}"
+          echo "POST ${url}"
+
+          # --max-time bounds a hung request so it cannot burn the job's five
+          # minutes. --retry covers transient network and cold-start failures;
+          # safe to retry because the endpoint is idempotent.
+          response=$(curl -sS -X POST \
+            --max-time 120 \
+            --retry 2 --retry-delay 5 --retry-connrefused \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "content-type: application/json" \
+            -w '\n%{http_code}' \
+            "${url}")
+
+          body=$(printf '%s' "${response}" | sed '$d')
+          code=$(printf '%s' "${response}" | tail -n 1)
+
+          # The drain returns claimed/processed/skipped/failed counts. Worth
+          # having in the log — it is the only record of what a run actually did.
+          echo "HTTP ${code}"
+          echo "${body}"
+
+          if [ "${code}" -lt 200 ] || [ "${code}" -ge 300 ]; then
+            echo "::error::process-events returned HTTP ${code}"
+            exit 1
+          fi
+
+          # A 2xx with failures inside it is still a problem worth surfacing,
+          # but not a reason to fail the run — the drain retries those itself
+          # with backoff. Annotate instead.
+          failed=$(printf '%s' "${body}" | grep -o '"failed":[0-9]*' | head -n1 | cut -d: -f2 || true)
+          if [ -n "${failed:-}" ] && [ "${failed}" != "0" ]; then
+            echo "::warning::${failed} event(s) failed and will be retried with backoff"
+          fi
+
+  # ==========================================================================
+  # Jobs below are written but not wired up. Each is one uncomment away — the
+  # job here AND its `cron:` line in the `on.schedule` block above, plus its
+  # entry in the workflow_dispatch options list.
+  #
+  # They are commented rather than left scheduled because a job that 404s every
+  # day is worse than no job at all: it turns a red X into background noise and
+  # you stop reading it.
+  # ==========================================================================
+
+  # dispatch-outbound:
+  #   name: Send queued outbound messages
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 5
+  #   if: >-
+  #     (github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *') ||
+  #     (github.event_name == 'workflow_dispatch' && inputs.job == 'dispatch-outbound')
+  #   concurrency:
+  #     group: cron-dispatch-outbound
+  #     cancel-in-progress: false
+  #   steps:
+  #     - name: Call /api/cron/dispatch-outbound
+  #       env:
+  #         APP_URL: ${{ secrets.APP_URL }}
+  #         CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  #         ENDPOINT: /api/cron/dispatch-outbound
+  #       run: |
+  #         set -euo pipefail
+  #         if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+  #           echo "::error::APP_URL and CRON_SECRET must both be set."
+  #           exit 1
+  #         fi
+  #         base="${APP_URL%/}"
+  #         response=$(curl -sS -X POST --max-time 120 \
+  #           --retry 2 --retry-delay 5 --retry-connrefused \
+  #           -H "Authorization: Bearer ${CRON_SECRET}" \
+  #           -H "content-type: application/json" \
+  #           -w '\n%{http_code}' "${base}${ENDPOINT}")
+  #         body=$(printf '%s' "${response}" | sed '$d')
+  #         code=$(printf '%s' "${response}" | tail -n 1)
+  #         echo "HTTP ${code}"
+  #         echo "${body}"
+  #         if [ "${code}" -lt 200 ] || [ "${code}" -ge 300 ]; then
+  #           echo "::error::dispatch-outbound returned HTTP ${code}"
+  #           exit 1
+  #         fi
+
+  # reminders:
+  #   name: Send invoice reminders
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
+  #   # 08:00 UTC = 09:00 Africa/Lagos, year-round (no DST in Lagos).
+  #   if: >-
+  #     (github.event_name == 'schedule' && github.event.schedule == '0 8 * * *') ||
+  #     (github.event_name == 'workflow_dispatch' && inputs.job == 'reminders')
+  #   concurrency:
+  #     group: cron-reminders
+  #     cancel-in-progress: false
+  #   steps:
+  #     - name: Call /api/cron/reminders
+  #       env:
+  #         APP_URL: ${{ secrets.APP_URL }}
+  #         CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  #         ENDPOINT: /api/cron/reminders
+  #       run: |
+  #         set -euo pipefail
+  #         if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+  #           echo "::error::APP_URL and CRON_SECRET must both be set."
+  #           exit 1
+  #         fi
+  #         base="${APP_URL%/}"
+  #         # Longer --max-time than the drain: this one sends email, and a
+  #         # provider that is slow rather than down should not be abandoned
+  #         # halfway through a batch.
+  #         response=$(curl -sS -X POST --max-time 300 \
+  #           --retry 1 --retry-delay 10 --retry-connrefused \
+  #           -H "Authorization: Bearer ${CRON_SECRET}" \
+  #           -H "content-type: application/json" \
+  #           -w '\n%{http_code}' "${base}${ENDPOINT}")
+  #         body=$(printf '%s' "${response}" | sed '$d')
+  #         code=$(printf '%s' "${response}" | tail -n 1)
+  #         echo "HTTP ${code}"
+  #         echo "${body}"
+  #         if [ "${code}" -lt 200 ] || [ "${code}" -ge 300 ]; then
+  #           echo "::error::reminders returned HTTP ${code}"
+  #           exit 1
+  #         fi
+
+  # reconcile:
+  #   name: Reconcile provider balances
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 15
+  #   if: >-
+  #     (github.event_name == 'schedule' && github.event.schedule == '0 2 * * *') ||
+  #     (github.event_name == 'workflow_dispatch' && inputs.job == 'reconcile')
+  #   concurrency:
+  #     group: cron-reconcile
+  #     cancel-in-progress: false
+  #   steps:
+  #     - name: Call /api/cron/reconcile
+  #       env:
+  #         APP_URL: ${{ secrets.APP_URL }}
+  #         CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  #         ENDPOINT: /api/cron/reconcile
+  #       run: |
+  #         set -euo pipefail
+  #         if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+  #           echo "::error::APP_URL and CRON_SECRET must both be set."
+  #           exit 1
+  #         fi
+  #         base="${APP_URL%/}"
+  #         response=$(curl -sS -X POST --max-time 600 \
+  #           --retry 1 --retry-delay 10 --retry-connrefused \
+  #           -H "Authorization: Bearer ${CRON_SECRET}" \
+  #           -H "content-type: application/json" \
+  #           -w '\n%{http_code}' "${base}${ENDPOINT}")
+  #         body=$(printf '%s' "${response}" | sed '$d')
+  #         code=$(printf '%s' "${response}" | tail -n 1)
+  #         echo "HTTP ${code}"
+  #         echo "${body}"
+  #         if [ "${code}" -lt 200 ] || [ "${code}" -ge 300 ]; then
+  #           echo "::error::reconcile returned HTTP ${code}"
+  #           exit 1
+  #         fi
+
+  # reset-demo:
+  #   name: Rebuild demo data
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 15
+  #   if: >-
+  #     (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') ||
+  #     (github.event_name == 'workflow_dispatch' && inputs.job == 'reset-demo')
+  #   concurrency:
+  #     group: cron-reset-demo
+  #     cancel-in-progress: false
+  #   steps:
+  #     - name: Call /api/cron/reset-demo
+  #       env:
+  #         APP_URL: ${{ secrets.APP_URL }}
+  #         CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  #         ENDPOINT: /api/cron/reset-demo
+  #       run: |
+  #         set -euo pipefail
+  #         if [ -z "${APP_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+  #           echo "::error::APP_URL and CRON_SECRET must both be set."
+  #           exit 1
+  #         fi
+  #         base="${APP_URL%/}"
+  #         response=$(curl -sS -X POST --max-time 600 \
+  #           --retry 1 --retry-delay 10 --retry-connrefused \
+  #           -H "Authorization: Bearer ${CRON_SECRET}" \
+  #           -H "content-type: application/json" \
+  #           -w '\n%{http_code}' "${base}${ENDPOINT}")
+  #         body=$(printf '%s' "${response}" | sed '$d')
+  #         code=$(printf '%s' "${response}" | tail -n 1)
+  #         echo "HTTP ${code}"
+  #         echo "${body}"
+  #         if [ "${code}" -lt 200 ] || [ "${code}" -ge 300 ]; then
+  #           echo "::error::reset-demo returned HTTP ${code}"
+  #           exit 1
+  #         fi
