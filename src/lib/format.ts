@@ -1,3 +1,5 @@
+import { BUSINESS_TIMEZONE } from './business-timezone';
+
 /**
  * Money formatting. The only place minor units become text.
  *
@@ -49,7 +51,7 @@ export function formatDate(date: Date): string {
   return date.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
-    timeZone: process.env.BUSINESS_TIMEZONE ?? 'Africa/Lagos',
+    timeZone: BUSINESS_TIMEZONE,
   });
 }
 
@@ -59,6 +61,6 @@ export function formatDateTime(date: Date): string {
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: process.env.BUSINESS_TIMEZONE ?? 'Africa/Lagos',
+    timeZone: BUSINESS_TIMEZONE,
   });
 }

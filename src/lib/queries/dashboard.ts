@@ -3,6 +3,7 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
+import { BUSINESS_TIMEZONE } from '@/lib/business-timezone';
 import type {
   InvoiceStatus,
   PaymentProvider,
@@ -67,9 +68,25 @@ import type {
    is a different figure and deserves its own function when someone needs it.
    ========================================================================== */
 
-const BUSINESS_TIMEZONE = process.env.BUSINESS_TIMEZONE ?? 'Africa/Lagos';
-
-/** The reporting base. `base_amount_minor` is denominated in this. */
+/**
+ * The reporting base. Deliberately a constant, not an environment variable.
+ *
+ * This is a property of the data already in the database, not a preference:
+ *
+ * - `payments.base_amount_minor` is *stored* denominated in it. Every row the
+ *   seeder and the webhook handlers have written is NGN minor units.
+ * - `fx_rates` rows are keyed on it — `getKpis` selects `where quote =
+ *   BASE_CURRENCY`, so the conversion table only holds pairs quoting NGN.
+ *
+ * Changing it is therefore a data migration (recompute every
+ * `base_amount_minor`, backfill the FX pairs for the new quote), not a config
+ * edit. Exposing it as an env var would offer a one-line change that silently
+ * produces wrong figures instead of an error: existing rows would keep their
+ * NGN values while every label claimed a different currency.
+ *
+ * If multi-base reporting is ever needed, it belongs as a column on the
+ * reporting query, not as a process-wide constant.
+ */
 export const BASE_CURRENCY = 'NGN';
 
 /** Postgres numerics and bigints arrive as strings. Never via Number. */
