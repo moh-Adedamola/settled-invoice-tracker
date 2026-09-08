@@ -262,6 +262,43 @@ export const loginAttempts = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* invoiceLineItems                                                           */
+/* -------------------------------------------------------------------------- */
+
+export const invoiceLineItems = pgTable(
+  'invoice_line_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'cascade' }),
+    /** Display order. Insertion order is not guaranteed by anything. */
+    position: integer('position').notNull(),
+    description: text('description').notNull(),
+    /** numeric(12,3): supports partial units such as 2.5 hours. */
+    quantity: numeric('quantity', { precision: 12, scale: 3 }).notNull().default('1'),
+    /** Price per unit, minor units. */
+    unitAmountMinor: bigint('unit_amount_minor', { mode: 'bigint' }).notNull(),
+    /**
+     * quantity x unitAmountMinor, STORED rather than computed.
+     *
+     * A sent invoice must not change because a rounding rule changed. The line
+     * total is a fact about the document, not a view over its inputs. See
+     * `multiplyByQuantity` in src/lib/money.ts for the rule that produced it.
+     */
+    lineAmountMinor: bigint('line_amount_minor', { mode: 'bigint' }).notNull(),
+    isDemo: boolean('is_demo').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('invoice_line_items_invoice_id_idx').on(t.invoiceId),
+    // Ordering is unambiguous: no two lines on one invoice share a position.
+    unique('invoice_line_items_invoice_position_key').on(t.invoiceId, t.position),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /* fxRates                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -309,6 +346,14 @@ export const invoicesRelations = relations(invoices, ({ one, many }) => ({
   }),
   payments: many(payments),
   reminders: many(reminders),
+  lineItems: many(invoiceLineItems),
+}));
+
+export const invoiceLineItemsRelations = relations(invoiceLineItems, ({ one }) => ({
+  invoice: one(invoices, {
+    fields: [invoiceLineItems.invoiceId],
+    references: [invoices.id],
+  }),
 }));
 
 export const paymentsRelations = relations(payments, ({ one }) => ({
@@ -344,6 +389,9 @@ export type NewClient = typeof clients.$inferInsert;
 
 export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
+
+export type InvoiceLineItem = typeof invoiceLineItems.$inferSelect;
+export type NewInvoiceLineItem = typeof invoiceLineItems.$inferInsert;
 
 export type Payment = typeof payments.$inferSelect;
 export type NewPayment = typeof payments.$inferInsert;

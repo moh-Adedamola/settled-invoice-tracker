@@ -37,6 +37,7 @@ async function main() {
   console.log(row('demo invoices', summary.purged.demoInvoices));
   console.log(row('demo payments', summary.purged.demoPayments));
   console.log(row('demo reminders', summary.purged.demoReminders));
+  console.log(row('demo line items', summary.purged.demoLineItems));
   console.log(row('webhook events', summary.purged.webhookEvents));
   console.log(row('login attempts', summary.purged.loginAttempts));
   console.log(row('expired sessions', summary.purged.expiredSessions));
@@ -44,6 +45,7 @@ async function main() {
   console.log('\n  Inserted');
   console.log(row('clients', summary.inserted.clients));
   console.log(row('invoices', summary.inserted.invoices));
+  console.log(row('line items', summary.inserted.lineItems));
   console.log(row('payments', summary.inserted.payments));
   console.log(row('reminders', summary.inserted.reminders));
   console.log(row('fx_rates', summary.inserted.fxRates));

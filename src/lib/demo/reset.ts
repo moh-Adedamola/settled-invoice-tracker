@@ -8,6 +8,7 @@ import {
   clients,
   db,
   fxRates,
+  invoiceLineItems,
   invoices,
   payments,
   reminders,
@@ -18,11 +19,13 @@ import type {
   NewClient,
   NewFxRate,
   NewInvoice,
+  NewInvoiceLineItem,
   NewPayment,
   NewReminder,
   PaymentProvider,
   PaymentStatus,
 } from '@/lib/db';
+import { multiplyByQuantity } from '@/lib/money';
 import { deleteExpiredSessions } from '@/lib/auth/session';
 import { deleteOldAttempts } from '@/lib/auth/rate-limit';
 
@@ -48,6 +51,7 @@ export type DemoDataset = {
   paymentRows: NewPayment[];
   reminderRows: NewReminder[];
   fxRateRows: NewFxRate[];
+  lineItemRows: NewInvoiceLineItem[];
   generatedAt: Date;
   /** Precomputed so callers do not need the internals to report a summary. */
   totals: {
@@ -796,6 +800,136 @@ export function buildDemoDataset(): DemoDataset {
   }));
 
   /* ---------------------------------------------------------------------- */
+  /* Line items                                                              */
+  /* ---------------------------------------------------------------------- */
+
+  /**
+   * Line items are ALLOCATED FROM the invoice total, never summed up to it.
+   *
+   * Building lines independently and hoping they add up is how rounding drift
+   * gets into a ledger: each `round(quantity x unit)` can move by a kobo, and
+   * four of those against a stored total is a discrepancy with no symptom. So
+   * every line but the last takes a chunk of what remains, and the last line
+   * takes the exact remainder. The sum equals the total by construction rather
+   * than by luck, which is also what the deferred constraint trigger enforces
+   * in the database.
+   */
+  const PHASE_ITEMS = [
+    'Discovery and scoping',
+    'Design — phase 1',
+    'Design — phase 2',
+    'Build — sprint 1',
+    'Build — sprint 2',
+    'Frontend implementation',
+    'Backend implementation',
+    'Content migration',
+    'QA and browser testing',
+    'Launch and handover',
+  ];
+
+  const RECURRING_ITEMS = [
+    'Support retainer',
+    'Managed hosting',
+    'SSL and domain renewal',
+    'Analytics reporting retainer',
+    'Backup and monitoring',
+  ];
+
+  const INTEGRATION_ITEMS = [
+    'Paystack integration',
+    'Flutterwave integration',
+    'WhatsApp Business API setup',
+    'Email delivery configuration',
+    'SSO and access control',
+  ];
+
+  const CLOSING_ITEMS = [
+    'Project management',
+    'Consultancy and advisory',
+    'Implementation services',
+    'Configuration and setup',
+  ];
+
+  /** Quantities that read naturally on an agency invoice. */
+  const QUANTITIES = [1, 1, 1, 1, 2, 3, 0.5, 1.5, 2.5, 4];
+
+  /** Round a unit price to something a human would have quoted. */
+  const tidyUnit = (minor: bigint, step: bigint): bigint => {
+    const rounded = (minor / step) * step;
+    return rounded > 0n ? rounded : step;
+  };
+
+  const lineItemRows: NewInvoiceLineItem[] = [];
+
+  for (const invoice of builtInvoices) {
+    const total = invoice.amountMinor;
+
+    // Small invoices read oddly split four ways.
+    const maxLines = total < 30_000_00n ? 2 : 4;
+    const lineCount = randInt(1, maxLines);
+
+    // Unit prices land on whole currency units for NGN, and on 50 minor units
+    // (£0.50 / $0.50) for the foreign currencies, which is how they are quoted.
+    const step = invoice.currency === 'NGN' ? 100n : 50n;
+
+    let remaining = total;
+    let position = 0;
+
+    for (let n = 0; n < lineCount - 1; n++) {
+      // Never take more than 45% of what is left, so the closing line always
+      // has something meaningful to absorb.
+      const cap = (remaining * 45n) / 100n;
+      if (cap <= step * 2n) break;
+
+      const quantityNumber = pick(QUANTITIES);
+      const scaledQuantity = BigInt(Math.round(quantityNumber * 1000));
+      const chunk = (cap * BigInt(randInt(40, 95))) / 100n;
+
+      const unitAmountMinor = tidyUnit((chunk * 1000n) / scaledQuantity, step);
+      const quantity = quantityNumber.toFixed(3);
+      const lineAmountMinor = multiplyByQuantity(quantity, unitAmountMinor);
+
+      // Skip anything that would consume the remainder or contribute nothing.
+      if (lineAmountMinor <= 0n || lineAmountMinor >= remaining) continue;
+
+      const pool =
+        n === 0 ? PHASE_ITEMS : rand() < 0.5 ? INTEGRATION_ITEMS : RECURRING_ITEMS;
+
+      position += 1;
+      lineItemRows.push({
+        id: randomUUID(),
+        invoiceId: invoice.id,
+        position,
+        description: pick(pool),
+        quantity,
+        unitAmountMinor,
+        lineAmountMinor,
+        isDemo: true,
+        createdAt: invoice.createdAt,
+        updatedAt: invoice.createdAt,
+      });
+
+      remaining -= lineAmountMinor;
+    }
+
+    // The closing line takes the exact remainder at quantity 1, so the set sums
+    // to the invoice total to the kobo no matter what the lines above rounded to.
+    position += 1;
+    lineItemRows.push({
+      id: randomUUID(),
+      invoiceId: invoice.id,
+      position,
+      description: position === 1 ? invoice.description : pick(CLOSING_ITEMS),
+      quantity: '1.000',
+      unitAmountMinor: remaining,
+      lineAmountMinor: remaining,
+      isDemo: true,
+      createdAt: invoice.createdAt,
+      updatedAt: invoice.createdAt,
+    });
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* Totals                                                                  */
   /* ---------------------------------------------------------------------- */
 
@@ -834,6 +968,7 @@ export function buildDemoDataset(): DemoDataset {
     paymentRows,
     reminderRows,
     fxRateRows,
+    lineItemRows,
     generatedAt: NOW,
     totals: {
       revenueMinor,
@@ -984,10 +1119,12 @@ export type ResetSummary = {
     webhookEvents: number;
     loginAttempts: number;
     expiredSessions: number;
+    demoLineItems: number;
   };
   inserted: {
     clients: number;
     invoices: number;
+    lineItems: number;
     payments: number;
     reminders: number;
     fxRates: number;
@@ -1043,7 +1180,17 @@ export async function resetDemo(): Promise<ResetSummary> {
   ).map((row) => row.id);
 
   let demoReminders = 0;
+  let demoLineItems = 0;
   if (demoInvoiceIds.length > 0) {
+    // Line items would cascade with their invoice anyway; deleting them
+    // explicitly just gives the summary an honest count.
+    demoLineItems = (
+      await db
+        .delete(invoiceLineItems)
+        .where(inArray(invoiceLineItems.invoiceId, demoInvoiceIds))
+        .returning({ id: invoiceLineItems.id })
+    ).length;
+
     // Reminders carry no isDemo of their own, so they are scoped through their
     // parent invoice.
     demoReminders = (
@@ -1088,6 +1235,13 @@ export async function resetDemo(): Promise<ResetSummary> {
   /* --- reinsert ----------------------------------------------------------- */
   await db.insert(clients).values(dataset.clientRows);
   await db.insert(invoices).values(dataset.invoiceRows);
+  /**
+   * One statement for every line on every invoice. The constraint trigger is
+   * deferred to commit, and neon-http gives each statement its own implicit
+   * transaction — so a set inserted across several statements would be checked
+   * mid-way, when the sums legitimately do not balance yet.
+   */
+  await db.insert(invoiceLineItems).values(dataset.lineItemRows);
   await db.insert(payments).values(dataset.paymentRows);
   if (dataset.reminderRows.length > 0) {
     await db.insert(reminders).values(dataset.reminderRows);
@@ -1108,10 +1262,12 @@ export async function resetDemo(): Promise<ResetSummary> {
       webhookEvents: purgedEvents,
       loginAttempts: purgedAttempts,
       expiredSessions: purgedSessions,
+      demoLineItems,
     },
     inserted: {
       clients: dataset.clientRows.length,
       invoices: dataset.invoiceRows.length,
+      lineItems: dataset.lineItemRows.length,
       payments: dataset.paymentRows.length,
       reminders: dataset.reminderRows.length,
       fxRates: dataset.fxRateRows.length,
