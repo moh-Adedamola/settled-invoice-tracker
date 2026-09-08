@@ -386,48 +386,53 @@ made literal, and it is instantly recognisable.
 | `text-small` | 13px | 1.45 | 400 | 0.002em | Sans | Table cells, help text |
 | `text-micro` | 11px | 1.3 | 500 | 0.06em | Sans, uppercase | Column headers, form labels, **KPI labels**, metadata |
 
-KPI figures use Plex Mono — the one place the mono appears large, and the
-dashboard's typographic signature. Size depends on how many tiles share the row:
+KPI figures use Plex Mono at **`text-h3` (18px), weight 500** — one size, every
+tile, every width. This is the one place the mono appears large, and it is the
+dashboard's typographic signature.
 
-| Tiles in the row | Figure size |
+**This corrects an earlier rule.** `text-h1` was specified first, then `text-h2`
+sized by tile count. Both came from arithmetic about character widths, and both
+clipped when rendered: at 1440px the total-revenue figure overflowed its tile by
+16px and at 1280px by 48px, silently truncating `₦80,164,039.41` to
+`₦80,164,039.4`. **A truncated money figure is the worst defect this system can
+produce** — it is wrong rather than merely ugly, and nothing on screen says so.
+
+Measured, from the rendered page rather than from character counts:
+
+| Figure | Width needed at 18px |
 | --- | --- |
-| 1-3 | `text-h1` (34px) |
-| 4 or more | **`text-h2` (24px)** |
+| `₦80,164,039.41` | ~149px |
+| `≈₦28,511,740.72` (outstanding) | ~160px |
 
-The dashboard KPI row carries five tiles, so it is `text-h2`. This is a
-correction: `text-h1` was specified without accounting for full-precision
-currency. `₦80,164,039.41` at 34px mono is roughly 350px wide, and five tiles on
-a 1600px page get about 300px each — the figures collided with their own tiles.
-Money is never abbreviated on a KPI tile, so the type has to give way.
+Add 32px of tile padding and **a KPI tile cannot be narrower than ~192px.**
 
-Where `text-h1` is used for a figure it borrows the size token only, paired with
-`font-mono`; it is not the display face, and it is the sole exception to the
-`(marketing)`-only rule below.
+### KPI row: size the columns, not the type
 
-`text-h1` is set in **Newsreader**. This resolves a contradiction found during the login
-build: the table above previously said Sans while §7's empty state specified a Newsreader
-headline. Newsreader wins — 34px is where the display face earns its place, and the
-wordmark and the empty-state headline are the only two things that live at that size.
-Weight drops to 500 to match: 600 is not in the loaded Newsreader range.
+The column count follows a guaranteed minimum tile width, never breakpoint
+variants:
 
-`text-*` utilities carry size, leading, tracking and weight only — never family. Pair it
-explicitly: `class="font-display text-h1"`.
+```html
+<section class="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-4">
+```
 
-**Newsreader is scoped to marketing and auth routes. Settled, not open.**
+That yields five across from 1440px and four below it, with every figure whole.
+Measured headroom is positive at 1024, 1280, 1366, 1440, 1600 and 1920, and tile
+heights are uniform within each row at all of them.
 
-It loads in the `(marketing)` segment only — the landing page, login, and the auth and
-error surfaces that sit beside them. The app shell ships Plex Sans and Plex Mono and
-nothing else.
+Two traps this avoids, both hit while fixing it:
 
-Two reasons. A surface reached dozens of times a week is the wrong place for a display
-serif: the face carries an editorial register that is right once and wearing on the four
-hundredth visit, which is the test §2 sets for every application surface. And loading it
-in `(app)` would put a third family in the shell for one headline on a screen users are
-trying to get past.
+- **Type cannot absorb the shortfall.** Five columns inside the 248px sidebar
+  leave 150px per tile at 1280px. The plain figure already needs 149px at 18px,
+  so there is no size that fits five full-precision figures at that width. The
+  column count has to give way; the number never does.
+- **Tailwind v4 sorts arbitrary media variants ahead of named ones.** Both
+  `min-[1440px]:grid-cols-5` and a custom `--breakpoint-wide` compiled *before*
+  `lg:grid-cols-3` and lost at every width, silently. If a responsive utility
+  appears to do nothing, check the compiled order before changing the value.
 
-**The rule that follows:** `text-h1` may only be used inside `(marketing)`. Anywhere else
-it renders in the fallback serif, which is drift, not design. In-app headlines top out at
-`text-h2` in Plex Sans — including in-app empty states (§7).
+The approximation mark on a converted figure rides inside the `currency-mark`
+span (`≈₦`) rather than sitting as a full-size character plus a space, which
+cost 25px and made outstanding the only tile that overflowed.
 
 ### Numerals — non-negotiable
 
@@ -731,7 +736,7 @@ The dashboard's headline figures. A card, not a new primitive: `bg-surface-raise
 | Slot | Treatment |
 | --- | --- |
 | Label | `text-micro` uppercase `--fg-muted` — the same voice as a column header |
-| Figure | `money` at `text-h2` (§5 gives the size-by-tile-count rule), `--fg-primary` |
+| Figure | `money` at `text-h3` (§5 — one size at every width), `--fg-primary` |
 | Currency mark | `currency-mark` inside the figure, so marks and digits align down a column of tiles |
 | Note | optional, `text-small` `--fg-muted`, one or two lines |
 
@@ -739,7 +744,10 @@ Rules:
 
 - **Never abbreviate money on a tile.** `₦80.2m` is not reconcilable against a
   ledger, and the point of the figure is that someone can check it. If it does
-  not fit, the type shrinks (§5), not the number.
+  not fit, **the column count drops** (§5) — not the number, and not the type,
+  which has already been sized as small as it usefully goes.
+- **A tile is never narrower than 215px.** Below that a full-precision figure
+  clips, and a clipped figure is silently wrong.
 - **A derived or converted figure must say so.** The outstanding tile carries a
   `≈` prefix and a note reading "approx. at live FX", with the exact
   per-currency amounts beneath it. A mixed-currency total is rate-dependent, and

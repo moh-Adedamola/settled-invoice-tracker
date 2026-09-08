@@ -21,7 +21,7 @@ function Tile({
 
 function Figure({ minor, currency }: { minor: bigint; currency: string }) {
   return (
-    <p className="money text-h2 text-ink">
+    <p className="money text-h3 whitespace-nowrap text-ink">
       <span className="currency-mark">{currencySymbol(currency)}</span>
       {formatMinorDigits(minor)}
     </p>
@@ -31,8 +31,24 @@ function Figure({ minor, currency }: { minor: bigint; currency: string }) {
 export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
   const { revenue, outstanding, overdue, unmatched } = kpis;
 
+  // Column count follows a guaranteed minimum tile width, not breakpoints.
+  //
+  // Measured: a full-precision figure needs ~149px and the outstanding tile
+  // ~160px, so a tile has to be at least ~192px wide. A five-column row
+  // inside the 248px sidebar leaves only 150px per tile at 1280 and 167px at
+  // 1366, and no usable type size survives that, so the column count gives
+  // way instead. auto-fit lands on five across from 1440px and steps down to
+  // four below it, with every figure whole.
+  //
+  // Deliberately NOT breakpoint variants: Tailwind v4 sorts arbitrary media
+  // variants before named ones, so both min-[1440px]: and a custom named
+  // breakpoint compiled ahead of lg: and lost at every width.
+  // See design system section 5.
   return (
-    <section aria-label="Key figures" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <section
+      aria-label="Key figures"
+      className="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-4"
+    >
       <Tile label="Total revenue">
         <Figure minor={revenue.allTimeMinor} currency={revenue.currency} />
       </Tile>
@@ -72,9 +88,13 @@ export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
           </>
         }
       >
-        <p className="money text-h2 text-ink">
-          <span className="text-ink-muted">≈ </span>
-          <span className="currency-mark">{currencySymbol(outstanding.baseCurrency)}</span>
+        <p className="money text-h3 whitespace-nowrap text-ink">
+          {/* The approximation mark rides with the currency mark rather than
+              sitting as a full-size character plus a space, which cost 25px
+              and made this the only tile that overflowed. */}
+          <span className="currency-mark">
+            ≈{currencySymbol(outstanding.baseCurrency)}
+          </span>
           {formatMinorDigits(outstanding.baseMinor)}
         </p>
       </Tile>
@@ -88,7 +108,7 @@ export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
           </span>
         }
       >
-        <p className="money text-h2 text-overdue">
+        <p className="money text-h3 whitespace-nowrap text-overdue">
           <span aria-hidden="true" className="mr-1.5 text-[0.6em] align-middle">
             ▲
           </span>
@@ -111,7 +131,7 @@ export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
           </span>
         }
       >
-        <p className="money text-h2 text-ink">{unmatched.count}</p>
+        <p className="money text-h3 whitespace-nowrap text-ink">{unmatched.count}</p>
       </Tile>
     </section>
   );

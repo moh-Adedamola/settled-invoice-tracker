@@ -43,8 +43,10 @@ export async function DashboardContent({ readOnly }: { readOnly: boolean }) {
     const major = Number(month.totalMinor / 100n);
     return {
       month: month.month,
+      // en-US, not en-GB: en-GB renders September as 'Sept' while every other
+      // month is three letters, so the axis had one odd label out.
       monthLabel: new Date(`${month.month}-01T00:00:00Z`).toLocaleDateString(
-        'en-GB',
+        'en-US',
         { month: 'short', year: '2-digit', timeZone: 'UTC' },
       ),
       plotMajor: major,
