@@ -6,9 +6,10 @@
  * error the whole schema exists to keep out, and it does so silently — the
  * result is a plausible integer that happens to be a kobo wrong.
  *
- * Sibling: `convertAtRate` in src/lib/processing/process-events.ts applies the
- * same technique to numeric(18,8) FX rates. The two should eventually live
- * together here.
+ * Two scaled-integer conversions live here: `multiplyByQuantity` for
+ * numeric(12,3) line quantities and `convertAtRate` for numeric(18,8) FX rates.
+ * `convertAtRate` moved here from the event processor once the invoice detail
+ * page needed it too — it is money arithmetic, not processing.
  */
 
 /** invoice_line_items.quantity is numeric(12,3). */
@@ -75,4 +76,42 @@ export function multiplyByQuantity(quantity: string, unitAmountMinor: bigint): b
 export function formatQuantity(quantity: number | string): string {
   const asNumber = typeof quantity === 'number' ? quantity : Number(quantity);
   return asNumber.toFixed(QUANTITY_SCALE);
+}
+
+/**
+ * The display form of the same value: `1.000` reads as `1`, `2.500` as `2.5`.
+ *
+ * The storage form above is canonical and padded; this one is for a person
+ * scanning a column of quantities, where three zeros after every whole number
+ * is noise that hides the one line that really is 2.5 hours.
+ *
+ * Trimmed as a string, never through `Number`. `numeric(12,3)` reaches 15
+ * significant digits, which is past what a float carries exactly, and a
+ * quantity is a term of the document.
+ */
+export function formatQuantityDisplay(quantity: string): string {
+  const trimmed = quantity.trim();
+  if (!trimmed.includes('.')) return trimmed;
+  return trimmed.replace(/0+$/, '').replace(/\.$/, '');
+}
+
+const RATE_SCALE = 8;
+const RATE_DIVISOR = 10n ** BigInt(RATE_SCALE);
+
+/**
+ * Converts minor units at a numeric(18,8) rate, entirely in bigint.
+ *
+ * `Number(minor) * Number(rate)` would be simpler and wrong: it reintroduces
+ * float rounding into a value the whole schema exists to keep exact. The rate
+ * string is scaled to an integer instead, multiplied, then divided with
+ * half-up rounding.
+ */
+export function convertAtRate(minor: bigint, rate: string): bigint {
+  const [whole, fraction = ''] = rate.trim().split('.');
+  const scaledFraction = fraction.padEnd(RATE_SCALE, '0').slice(0, RATE_SCALE);
+  const scaledRate = BigInt(`${whole}${scaledFraction}`);
+
+  const product = minor * scaledRate;
+  // Half-up: add half a divisor before the integer division.
+  return (product + RATE_DIVISOR / 2n) / RATE_DIVISOR;
 }

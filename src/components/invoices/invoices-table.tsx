@@ -62,6 +62,9 @@ export function InvoicesTable({
     return `/invoices${patchQuery(query, { sort: key, dir: nextDirection })}`;
   };
 
+  const listQuery = query.toString();
+  const detailSuffix = listQuery ? `?back=${encodeURIComponent(listQuery)}` : '';
+
   const headCell =
     'sticky top-0 z-10 bg-surface px-3 py-2.5 text-micro font-medium uppercase whitespace-nowrap text-ink-muted';
   const bodyCell = 'h-11 px-3 text-small whitespace-nowrap';
@@ -138,8 +141,11 @@ export function InvoicesTable({
                     through, and repeats the hover so the row reads as one.
                     whitespace-nowrap is load-bearing — see §7. */}
                 <td className="money sticky left-0 z-10 h-11 bg-surface px-4 text-small whitespace-nowrap text-ink group-hover:bg-row-hover">
+                  {/* Carries the list's own query so the detail page can offer
+                      a way back to the exact filtered view, not just /invoices.
+                      See the note on `from` in the detail page. */}
                   <Link
-                    href={`/invoices/${invoice.id}`}
+                    href={`/invoices/${invoice.id}${detailSuffix}`}
                     className="rounded-xs underline-offset-2 hover:underline"
                   >
                     {invoice.number}

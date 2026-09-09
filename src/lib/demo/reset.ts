@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import { eq, inArray, sql } from 'drizzle-orm';
 
@@ -43,7 +43,75 @@ import { deleteOldAttempts } from '@/lib/auth/rate-limit';
    hours or days earlier, so "the current month" would silently drift out of
    date. Calling the function produces a dataset anchored to the moment of the
    call.
+
+   ---------------------------------------------------------------------------
+   WHAT EXISTS IS FIXED. WHEN IT HAPPENED SLIDES.
+   ---------------------------------------------------------------------------
+
+   Every reset produces the same ledger: the same clients, the same 48 invoices
+   with the same numbers, amounts, currencies, statuses and line-item splits,
+   the same payments and reminders, and — critically — the same row ids. Only
+   the dates move, so an invoice that is five days overdue is five days overdue
+   whenever you look, and the revenue chart's six-month window always ends in
+   the current month.
+
+   That split is enforced by one rule: **no composition decision may read the
+   clock.** Concretely:
+
+   - Ids come from `uuidFor(<stable key>)`, not `randomUUID()`. A link to
+     /invoices/<id> survives every reset, forever.
+   - Invoice numbers carry `LEDGER_YEAR`, a constant, not the current year.
+   - Every invoice draws a `MonthSlot` (day 1-28, hour, minute) from the seeded
+     RNG *before* any calendar is consulted. 28 because every month has at least
+     28 days, so the same draw is a valid day in every month of every year.
+   - Numbering follows `sortKey`, a nominal "days before today" computed from
+     those draws alone. Sorting on the rendered dates would let an invoice
+     change its number when month lengths shift the interleaving.
+   - The current month is no longer scaled by how much of it has elapsed. That
+     scaling changed how many invoices EXIST — it was why a seed on the 8th
+     produced 89 line items and one on the 9th produced 87. The chart already
+     marks the current month as in-progress (§4), which is the honest way to say
+     "partial" without deleting rows to prove it.
+
+   Two deliberate exceptions, both cases where freezing the value would make the
+   data lie rather than make it stable:
+
+   - Descriptions that name a month ("Monthly SEO retainer, August") render the
+     invoice's own date. Pinning the word while the date slides would put August
+     on a September invoice.
+   - `fx_rates` ids are keyed on the rate's date, not its position in the run.
+     Those rows are a time series that is never purged, so a new day has to be
+     able to add a row rather than collide with an existing id.
    ========================================================================== */
+
+/**
+ * A v5 UUID (RFC 4122) derived from a stable key, so the same key always names
+ * the same row. This is what makes a bookmarked /invoices/<id> keep resolving
+ * after a reset.
+ *
+ * The namespace is an arbitrary constant generated once; it only has to be
+ * fixed, and keeping it here means these ids can be re-derived by hand from the
+ * key alone.
+ */
+const DEMO_UUID_NAMESPACE = Buffer.from(
+  '1b671a64-40d5-491e-99b0-da01ff1f3341'.replace(/-/g, ''),
+  'hex',
+);
+
+export function uuidFor(key: string): string {
+  const hash = createHash('sha1').update(DEMO_UUID_NAMESPACE).update(key, 'utf8').digest();
+  const bytes = Uint8Array.prototype.slice.call(hash, 0, 16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50; // version 5
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80; // RFC 4122 variant
+  const hex = Buffer.from(bytes).toString('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join('-');
+}
 
 export type DemoDataset = {
   clientRows: NewClient[];
@@ -106,30 +174,120 @@ export function buildDemoDataset(): DemoDataset {
   const HOUR = 3_600_000;
   const DAY = 86_400_000;
   const NOW = new Date();
-  const YEAR = NOW.getUTCFullYear();
+
+  /**
+   * The year printed in every invoice number. A constant, not `YEAR`.
+   *
+   * Numbers are identity — they are what a person quotes on the phone — so they
+   * must not change when the wall clock rolls into a new year. The cost is that
+   * from 2027 the prefix reads as a label rather than as the issue year; the
+   * issue date is on the invoice and is correct.
+   */
+  const LEDGER_YEAR = 2026;
 
   const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY);
   const addHours = (d: Date, n: number) => new Date(d.getTime() + n * HOUR);
   const monthName = (d: Date) => d.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' });
 
-  /** A business-hours timestamp inside the month `monthsAgo` before today. */
-  function dateInMonth(monthsAgo: number): Date {
-    const first = new Date(Date.UTC(YEAR, NOW.getUTCMonth() - monthsAgo, 1));
-    const daysInMonth = new Date(
-      Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0),
-    ).getUTCDate();
-    // The current month is only partly elapsed — never issue an invoice in the future.
-    const maxDay = monthsAgo === 0 ? Math.max(1, NOW.getUTCDate() - 1) : daysInMonth;
+  /**
+   * Where in a month an invoice sits, drawn from the RNG with no calendar
+   * involved. Day is 1-28 because every month has at least 28 days, so one
+   * draw is a valid day in every month of every year — which is what stops the
+   * calendar leaking into composition.
+   */
+  type MonthSlot = { day: number; hour: number; minute: number };
+
+  const monthSlot = (): MonthSlot => ({
+    day: randInt(1, 28),
+    hour: randInt(9, 17),
+    minute: randInt(0, 59),
+  });
+
+  /**
+   * Renders a slot into the month `monthsAgo` before today. Timing only: the
+   * slot decided what exists, this decides when to show it.
+   *
+   * The current month is only partly elapsed, so its slots are compressed into
+   * the days that have actually happened — never issuing an invoice in the
+   * future, and preserving order, without changing which invoices exist.
+   */
+  function dateForSlot(monthsAgo: number, slot: MonthSlot, today: Date): Date {
+    const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - monthsAgo, 1));
+    const lastDay = monthsAgo === 0 ? Math.max(1, today.getUTCDate() - 1) : 28;
+    const day =
+      monthsAgo === 0 ? 1 + Math.round(((slot.day - 1) / 27) * (lastDay - 1)) : slot.day;
     return new Date(
-      Date.UTC(
-        first.getUTCFullYear(),
-        first.getUTCMonth(),
-        randInt(1, maxDay),
-        randInt(9, 17),
-        randInt(0, 59),
-      ),
+      Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), day, slot.hour, slot.minute),
     );
   }
+
+  /**
+   * The day the ledger is ordered against. A constant, deliberately.
+   *
+   * ## Why numbering cannot sort on the rendered dates
+   *
+   * Two families of invoice live here. Paid and void ones are anchored to
+   * calendar months, so the revenue chart's six-month window always ends in the
+   * current month. Overdue, sent and draft ones are anchored to today, so an
+   * invoice five days overdue is five days overdue whenever you look. Those two
+   * families slide against each other as the month turns: an overdue invoice is
+   * always 40 days before today, while a month-bucket invoice sits on the 12th
+   * of its month, and which of them came first depends on what day it is.
+   *
+   * Sorting on rendered dates therefore reorders the ledger through the month,
+   * and an invoice that changes place changes its number.
+   *
+   * So every invoice is rendered twice: once against today, which is stored,
+   * and once against this fixed reference, which is what it is sorted by.
+   * `renderIssuedAt` is the single function both calls go through, so the two
+   * renderings cannot drift apart.
+   *
+   * ## The cost, measured
+   *
+   * Four requirements are in play: month-anchored revenue, today-anchored
+   * overdue ages, permanently stable numbers, and numbers that read in date
+   * order. Any three can hold. The first three are the ones asked for, so the
+   * fourth is the one that gives.
+   *
+   * Measured across fourteen dates from 2026 to 2030: 7 or 8 of the 47 adjacent
+   * pairs are out of date order, by at most ~15 days — always the same shape,
+   * a today-anchored invoice sitting a fortnight later than the month-anchored
+   * one numbered after it. On a date matching this reference it is exactly 0.
+   * The list is sorted by issue date by default and shows that date on every
+   * row, so the number is read as identity rather than as sequence.
+   *
+   * To trade back the other way, sort `builtInvoices` on
+   * `(issuedAt ?? createdAt)` instead of `sortKey`: perfect date order, and
+   * invoice numbers that move between resets.
+   */
+  const ORDERING_REFERENCE = new Date(Date.UTC(2026, 8, 15, 12, 0, 0));
+
+  /**
+   * When an invoice was issued, as a function of what day it is.
+   *
+   * This is the whole composition/timing split in one type: `TimeSpec` says
+   * where an invoice sits relative to the present, and carries no dates at all;
+   * rendering it against a day produces the dates.
+   */
+  type TimeSpec =
+    | { kind: 'month'; monthsAgo: number; slot: MonthSlot }
+    /** Overdue and sent alike: due `dueInDays` from today (negative = past). */
+    | { kind: 'dated'; dueInDays: number; term: number }
+    | { kind: 'draft'; daysAgo: number };
+
+  function renderIssuedAt(spec: TimeSpec, today: Date): Date {
+    switch (spec.kind) {
+      case 'month':
+        return dateForSlot(spec.monthsAgo, spec.slot, today);
+      case 'dated':
+        return addDays(addDays(today, spec.dueInDays), -spec.term);
+      case 'draft':
+        return addDays(today, -spec.daysAgo);
+    }
+  }
+
+  const sortKeyFor = (spec: TimeSpec) =>
+    renderIssuedAt(spec, ORDERING_REFERENCE).getTime();
 
   /* -------------------------------------------------------------------------- */
   /* Money helpers                                                              */
@@ -331,7 +489,15 @@ export function buildDemoDataset(): DemoDataset {
 
   const builtClients: BuiltClient[] = CLIENT_SEEDS.map((seed) => ({
     ...seed,
-    id: randomUUID(),
+    /*
+     * Keyed on the full email, not the local-part.
+     *
+     * The first version keyed on `localPart` and four seeds collided on it —
+     * `accounts` is used by four of the fourteen clients — so the insert died
+     * on clients_pkey. Random ids had been hiding that the key was not unique.
+     * The email is the client's natural key and cannot repeat.
+     */
+    id: uuidFor(`client:${seed.localPart}@${seed.domain}`),
     email: `${seed.localPart}@${seed.domain}`,
   }));
 
@@ -391,8 +557,13 @@ export function buildDemoDataset(): DemoDataset {
   }
 
   type BuiltInvoice = {
+    /** Empty until numbering; the id is derived from the number. */
     id: string;
     number: string;
+    /** Issue date as rendered against ORDERING_REFERENCE. Orders the ledger. */
+    sortKey: number;
+    /** Creation order, as a stable tiebreak when two invoices share a key. */
+    seq: number;
     client: BuiltClient;
     currency: Currency;
     amountMinor: bigint;
@@ -423,15 +594,18 @@ export function buildDemoDataset(): DemoDataset {
    */
   const MONTHLY_VOLUME = [5, 6, 7, 5, 7, 2];
 
-  /**
-   * The current month is only partly elapsed, so its full target would read as a
-   * growth spike on the chart rather than a normal month in progress. Scale it by
-   * the fraction of the month that has actually happened.
+  /*
+   * The current month used to be scaled by the fraction of it that had elapsed,
+   * so a reset on the 8th and one on the 28th produced different numbers of
+   * invoices. That is composition drifting with the clock: it changed the RNG
+   * stream for everything downstream, which is why the line-item count moved
+   * between 87 and 104 depending on the day.
+   *
+   * Every month now gets its full target. The current month still reads as
+   * in-progress on the chart, because §4 draws the final bar at 42% opacity
+   * with a dashed stroke — a presentation decision, which is where "this month
+   * is not finished" belongs, rather than deleting rows to imply it.
    */
-  const DAYS_IN_CURRENT_MONTH = new Date(Date.UTC(YEAR, NOW.getUTCMonth() + 1, 0)).getUTCDate();
-  const MONTH_ELAPSED = NOW.getUTCDate() / DAYS_IN_CURRENT_MONTH;
-  const volumeFor = (monthsAgo: number, target: number) =>
-    monthsAgo === 0 ? Math.max(1, Math.round(target * MONTH_ELAPSED)) : target;
 
   /** Ages in days past due — spread so every reminder sequence has material. */
   const OVERDUE_AGES = [5, 8, 12, 16, 22, 31, 40];
@@ -454,19 +628,26 @@ export function buildDemoDataset(): DemoDataset {
   const draftInvoices: BuiltInvoice[] = [];
   const builtInvoices: BuiltInvoice[] = [];
 
+  let invoiceSeq = 0;
+
   function makeInvoice(args: {
     status: InvoiceStatus;
     issuedAt: Date | null;
     dueAt: Date | null;
     createdAt: Date;
+    sortKey: number;
   }): BuiltInvoice {
     const currency = nextCurrency();
     const client = pick(clientsByCurrency[currency]);
     const when = args.issuedAt ?? args.createdAt;
     const sent = args.status === 'draft' ? null : args.issuedAt;
     return {
-      id: randomUUID(),
-      number: '', // assigned after the whole set is sorted by date
+      // Both assigned once the set is ordered: the number comes from the
+      // position, and the id comes from the number.
+      id: '',
+      number: '',
+      sortKey: args.sortKey,
+      seq: invoiceSeq++,
       client,
       currency,
       amountMinor: amountFor(currency),
@@ -481,26 +662,29 @@ export function buildDemoDataset(): DemoDataset {
   }
 
   // --- paid and void, dated from the monthly buckets --------------------------
-  const bucketDates: Date[] = [];
+  // Slots are drawn first, with no calendar involved; the dates come after.
+  const bucketSlots: { monthsAgo: number; slot: MonthSlot }[] = [];
   MONTHLY_VOLUME.forEach((count, index) => {
     const monthsAgo = MONTHLY_VOLUME.length - 1 - index;
-    const target = volumeFor(monthsAgo, count);
-    for (let n = 0; n < target; n++) bucketDates.push(dateInMonth(monthsAgo));
+    for (let n = 0; n < count; n++) bucketSlots.push({ monthsAgo, slot: monthSlot() });
   });
 
   const bucketStatuses = shuffle([
     ...Array<InvoiceStatus>(2).fill('void'),
-    ...Array<InvoiceStatus>(bucketDates.length - 2).fill('paid'),
+    ...Array<InvoiceStatus>(bucketSlots.length - 2).fill('paid'),
   ]);
 
-  bucketDates.forEach((issuedAt, index) => {
+  bucketSlots.forEach(({ monthsAgo, slot }, index) => {
     const term = pick([14, 30]);
+    const spec: TimeSpec = { kind: 'month', monthsAgo, slot };
+    const issuedAt = renderIssuedAt(spec, NOW);
     builtInvoices.push(
       makeInvoice({
         status: bucketStatuses[index]!,
         issuedAt,
         dueAt: addDays(issuedAt, term),
         createdAt: addHours(issuedAt, -randInt(1, 6)),
+        sortKey: sortKeyFor(spec),
       }),
     );
   });
@@ -508,37 +692,65 @@ export function buildDemoDataset(): DemoDataset {
   // --- overdue (7), dates forced so the reminder ladder is fully populated ----
   for (const age of OVERDUE_AGES) {
     const term = pick([14, 30]);
+    const spec: TimeSpec = { kind: 'dated', dueInDays: -age, term };
     const dueAt = addDays(NOW, -age);
-    const issuedAt = addDays(dueAt, -term);
+    const issuedAt = renderIssuedAt(spec, NOW);
     builtInvoices.push({
-      ...makeInvoice({ status: 'overdue', issuedAt, dueAt, createdAt: addHours(issuedAt, -2) }),
+      ...makeInvoice({
+        status: 'overdue',
+        issuedAt,
+        dueAt,
+        createdAt: addHours(issuedAt, -2),
+        sortKey: sortKeyFor(spec),
+      }),
     });
   }
 
   // --- sent, issued but not yet due (6) --------------------------------------
   for (let n = 0; n < 6; n++) {
     const term = pick([14, 30]);
-    const dueAt = addDays(NOW, randInt(3, Math.min(12, term - 2)));
-    const issuedAt = addDays(dueAt, -term);
+    const daysUntilDue = randInt(3, Math.min(12, term - 2));
+    const spec: TimeSpec = { kind: 'dated', dueInDays: daysUntilDue, term };
+    const dueAt = addDays(NOW, daysUntilDue);
+    const issuedAt = renderIssuedAt(spec, NOW);
     builtInvoices.push(
-      makeInvoice({ status: 'sent', issuedAt, dueAt, createdAt: addHours(issuedAt, -2) }),
+      makeInvoice({
+        status: 'sent',
+        issuedAt,
+        dueAt,
+        createdAt: addHours(issuedAt, -2),
+        sortKey: sortKeyFor(spec),
+      }),
     );
   }
 
   // --- draft (3): never issued, so no issuedAt/dueAt/sentAt ------------------
   for (let n = 0; n < 3; n++) {
-    const createdAt = addDays(NOW, -randInt(1, 21));
-    const draft = makeInvoice({ status: 'draft', issuedAt: null, dueAt: null, createdAt });
+    const daysAgo = randInt(1, 21);
+    const spec: TimeSpec = { kind: 'draft', daysAgo };
+    const draft = makeInvoice({
+      status: 'draft',
+      issuedAt: null,
+      dueAt: null,
+      createdAt: renderIssuedAt(spec, NOW),
+      sortKey: sortKeyFor(spec),
+    });
     builtInvoices.push(draft);
     draftInvoices.push(draft);
   }
 
-  // Sequential numbering follows date order, the way a real ledger reads.
-  builtInvoices.sort(
-    (a, b) => (a.issuedAt ?? a.createdAt).getTime() - (b.issuedAt ?? b.createdAt).getTime(),
-  );
+  /*
+   * Numbering follows `sortKey` — nominal days before today, oldest first —
+   * rather than the rendered dates, so the same invoice keeps the same number
+   * however the calendar moves underneath it. `seq` breaks ties, so the order is
+   * total and not left to the sort's stability guarantees.
+   *
+   * The id follows the number, which is why neither is set in `makeInvoice`.
+   */
+  builtInvoices.sort((a, b) => a.sortKey - b.sortKey || a.seq - b.seq);
   builtInvoices.forEach((invoice, index) => {
-    invoice.number = `INV-${YEAR}-${String(index + 1).padStart(4, '0')}`;
+    invoice.number = `INV-${LEDGER_YEAR}-${String(index + 1).padStart(4, '0')}`;
+    invoice.id = uuidFor(`invoice:${invoice.number}`);
   });
 
   /* -------------------------------------------------------------------------- */
@@ -615,12 +827,16 @@ export function buildDemoDataset(): DemoDataset {
       args.provider ??
       (args.client ? providerFor(args.client, args.currency) : pick(['paystack', 'stripe'] as const));
     const fx = fxFor(args.currency, args.amountMinor, args.occurredAt);
+    // The provider reference is drawn from the seeded RNG and is already the
+    // natural key for a payment — schema has unique(provider, providerPaymentId)
+    // — so the id derives from the same pair.
+    const reference = providerPaymentId(provider);
     paymentRows.push({
-      id: randomUUID(),
+      id: uuidFor(`payment:${provider}:${reference}`),
       invoiceId: args.invoice?.id ?? null,
       clientId: args.client?.id ?? null,
       provider,
-      providerPaymentId: providerPaymentId(provider),
+      providerPaymentId: reference,
       amountMinor: args.amountMinor,
       currency: args.currency,
       status: args.status,
@@ -744,7 +960,7 @@ export function buildDemoDataset(): DemoDataset {
       // One row per (invoiceId, sequence) — the composite unique makes a
       // double-send impossible even if two cron runs overlap.
       reminderRows.push({
-        id: randomUUID(),
+        id: uuidFor(`reminder:${invoice.number}:${step.sequence}`),
         invoiceId: invoice.id,
         sequence: step.sequence,
         channel: 'email',
@@ -767,14 +983,26 @@ export function buildDemoDataset(): DemoDataset {
     for (let back = FX_DAYS - 1; back >= 0; back--) {
       rate *= 1 + (rand() - 0.48) * 0.006; // gentle drift, mild upward bias
       const day = addDays(NOW, -back);
+      const fetchedAt = new Date(
+        Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 6, 0, 0),
+      );
       fxRateRows.push({
-        id: randomUUID(),
+        /*
+         * Keyed on the DATE, not on `back`.
+         *
+         * fx_rates is the one table a reset never purges — it is a time series,
+         * and yesterday's rate is needed to explain yesterday's payment. Keying
+         * on `back` would give today's row and tomorrow's row the same id, and
+         * the insert below is onConflictDoNothing, so tomorrow's rate would
+         * silently never land. Keying on the date makes a same-day re-run a
+         * no-op (which the unique on (base, quote, fetched_at) already wanted)
+         * while leaving every new day free to insert.
+         */
+        id: uuidFor(`fx:${quotePair.base}:NGN:${fetchedAt.toISOString().slice(0, 10)}`),
         base: quotePair.base,
         quote: 'NGN',
         rate: rate.toFixed(8),
-        fetchedAt: new Date(
-          Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 6, 0, 0),
-        ),
+        fetchedAt,
       });
     }
   }
@@ -897,7 +1125,7 @@ export function buildDemoDataset(): DemoDataset {
 
       position += 1;
       lineItemRows.push({
-        id: randomUUID(),
+        id: uuidFor(`line:${invoice.number}:${position}`),
         invoiceId: invoice.id,
         position,
         description: pick(pool),
@@ -916,7 +1144,7 @@ export function buildDemoDataset(): DemoDataset {
     // to the invoice total to the kobo no matter what the lines above rounded to.
     position += 1;
     lineItemRows.push({
-      id: randomUUID(),
+      id: uuidFor(`line:${invoice.number}:${position}`),
       invoiceId: invoice.id,
       position,
       description: position === 1 ? invoice.description : pick(CLOSING_ITEMS),
@@ -928,6 +1156,41 @@ export function buildDemoDataset(): DemoDataset {
       updatedAt: invoice.createdAt,
     });
   }
+
+  /* ---------------------------------------------------------------------- */
+  /* Id sanity                                                               */
+  /* ---------------------------------------------------------------------- */
+
+  /*
+   * Derived ids are only as good as the keys they are derived from, and a
+   * duplicate key is silent until Postgres rejects the insert with a primary
+   * key violation naming a uuid and nothing else. That is exactly what happened
+   * when client ids were first keyed on the email local-part, which four of the
+   * fourteen clients share.
+   *
+   * So the invariant is checked here, where the offending key can still be
+   * named. This runs on a few hundred rows and costs nothing.
+   */
+  function assertDistinctIds(label: string, ids: (string | undefined)[]): void {
+    const seen = new Set<string>();
+    for (const id of ids) {
+      if (id === undefined) throw new Error(`demo dataset: ${label} produced a row with no id`);
+      if (seen.has(id)) {
+        throw new Error(
+          `demo dataset: ${label} derived the same id twice (${id}). ` +
+            'Two rows share the key uuidFor() was given; make the key unique.',
+        );
+      }
+      seen.add(id);
+    }
+  }
+
+  assertDistinctIds('clients', clientRows.map((r) => r.id));
+  assertDistinctIds('invoices', invoiceRows.map((r) => r.id));
+  assertDistinctIds('line items', lineItemRows.map((r) => r.id));
+  assertDistinctIds('payments', paymentRows.map((r) => r.id));
+  assertDistinctIds('reminders', reminderRows.map((r) => r.id));
+  assertDistinctIds('fx rates', fxRateRows.map((r) => r.id));
 
   /* ---------------------------------------------------------------------- */
   /* Totals                                                                  */
@@ -1092,7 +1355,9 @@ async function ensureAdminUser(): Promise<'inserted' | 'kept'> {
   const inserted = await db
     .insert(users)
     .values({
-      id: randomUUID(),
+      // Stable too, so a re-run cannot create a second admin row if the email
+      // conflict target were ever changed.
+      id: uuidFor(`user:${email}`),
       email,
       passwordHash: PLACEHOLDER_PASSWORD_HASH,
       role: 'admin',

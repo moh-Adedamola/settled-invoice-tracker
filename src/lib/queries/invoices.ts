@@ -1,10 +1,15 @@
 import 'server-only';
 
+import { cache } from 'react';
 import { sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { BUSINESS_TIMEZONE } from '@/lib/business-timezone';
 
+import { convertAtRate } from '@/lib/money';
+import type { PaymentStatus } from '@/lib/db';
+
+import { BASE_CURRENCY } from './dashboard';
 import {
   daysOverdueExpr,
   effectiveStatusExpr,
@@ -303,3 +308,272 @@ export async function getInvoiceFilterOptions(): Promise<InvoiceFilterOptions> {
     ),
   };
 }
+
+/* ==========================================================================
+   One invoice, in full.
+   ========================================================================== */
+
+export type InvoiceLine = {
+  id: string;
+  position: number;
+  description: string;
+  /** numeric(12,3) as a string. Never a float — see money.ts. */
+  quantity: string;
+  unitAmountMinor: bigint;
+  lineAmountMinor: bigint;
+};
+
+export type InvoicePayment = {
+  id: string;
+  provider: string;
+  providerPaymentId: string;
+  amountMinor: bigint;
+  currency: string;
+  status: PaymentStatus;
+  method: string | null;
+  occurredAt: Date;
+  /**
+   * Outstanding immediately after this payment, counting only succeeded ones.
+   * A failed or pending row leaves it unchanged, which is the point.
+   */
+  balanceAfterMinor: bigint;
+};
+
+export type InvoiceReminder = {
+  id: string;
+  sequence: number;
+  channel: string;
+  sentAt: Date;
+};
+
+export type InvoiceDetail = {
+  id: string;
+  number: string;
+  currency: string;
+  amountMinor: bigint;
+  paidMinor: bigint;
+  outstandingMinor: bigint;
+  status: EffectiveStatus;
+  storedStatus: string;
+  description: string | null;
+  issuedAt: Date | null;
+  dueAt: Date | null;
+  sentAt: Date | null;
+  paidAt: Date | null;
+  daysOverdue: number;
+  client: { id: string; name: string; email: string | null };
+  lineItems: InvoiceLine[];
+  payments: InvoicePayment[];
+  reminders: InvoiceReminder[];
+  /**
+   * Base-currency equivalents, present only when the invoice is in another
+   * currency AND a rate exists. Indicative, never exact.
+   */
+  base: {
+    currency: string;
+    rate: string;
+    fetchedAt: Date;
+    amountMinor: bigint;
+    paidMinor: bigint;
+    outstandingMinor: bigint;
+  } | null;
+};
+
+/** Postgres throws on a malformed uuid cast, so the shape is checked first. */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Everything the detail page renders, in a single statement.
+ *
+ * The children are aggregated into jsonb in subqueries rather than fetched
+ * separately. On neon-http every query is its own HTTP request with no
+ * transaction around it, so four reads would be four round trips AND four
+ * different instants — the payment list could disagree with the balance printed
+ * beside it. One statement is both fewer trips and the only way the figures are
+ * guaranteed to describe the same moment.
+ *
+ * Returns null for a missing or malformed id; the page turns that into a 404.
+ *
+ * Wrapped in React's `cache` because the detail page reads it twice per
+ * request — once in `generateMetadata` for the tab title, once to render — and
+ * without it that is two identical round trips, at two different instants.
+ */
+export const getInvoice = cache(async (id: string): Promise<InvoiceDetail | null> => {
+  if (!UUID_PATTERN.test(id)) return null;
+
+  const result = await db.execute(sql`
+    with ${settledPaymentsCte},
+    latest_fx as (
+      select distinct on (base) base, rate, fetched_at
+      from fx_rates
+      where quote = ${BASE_CURRENCY}
+      order by base, fetched_at desc
+    )
+    select
+      i.id::text,
+      i.number,
+      i.currency,
+      i.amount_minor::text                  as amount_minor,
+      i.status                              as stored_status,
+      i.description,
+      i.issued_at,
+      i.due_at,
+      i.sent_at,
+      i.paid_at,
+      c.id::text                            as client_id,
+      c.name                                as client_name,
+      c.email                               as client_email,
+      ${settledMinorExpr}::bigint::text     as paid_minor,
+      ${outstandingMinorExpr}::bigint::text as outstanding_minor,
+      ${effectiveStatusExpr}                as effective_status,
+      ${daysOverdueExpr(BUSINESS_TIMEZONE)} as days_overdue,
+      f.rate::text                          as fx_rate,
+      f.fetched_at                          as fx_at,
+
+      -- Line items in document order. The unique (invoice_id, position)
+      -- constraint is what makes that order well defined.
+      (
+        select coalesce(jsonb_agg(to_jsonb(li) order by li.position), '[]'::jsonb)
+        from (
+          select
+            l.id::text                as id,
+            l.position                as position,
+            l.description             as description,
+            l.quantity::text          as quantity,
+            l.unit_amount_minor::text as unit_amount_minor,
+            l.line_amount_minor::text as line_amount_minor
+          from invoice_line_items l
+          where l.invoice_id = i.id
+        ) li
+      ) as line_items,
+
+      -- EVERY payment, not only the successful ones. A failed attempt is part
+      -- of the story of why an invoice is still open, and hiding it makes the
+      -- reminder ladder beside it look unprovoked.
+      (
+        select coalesce(jsonb_agg(to_jsonb(pm) order by pm.occurred_at, pm.id), '[]'::jsonb)
+        from (
+          select
+            p.id::text            as id,
+            p.provider::text      as provider,
+            p.provider_payment_id as provider_payment_id,
+            p.amount_minor::text  as amount_minor,
+            p.currency            as currency,
+            p.status::text        as status,
+            p.method              as method,
+            p.occurred_at         as occurred_at,
+            -- Running balance. The FILTER is load-bearing: only succeeded
+            -- payments move it, so a failed row sits in the history at the
+            -- same balance as the row above it.
+            greatest(
+              i.amount_minor - coalesce(
+                sum(p.amount_minor) filter (where p.status = 'succeeded') over (
+                  order by p.occurred_at, p.id
+                  rows between unbounded preceding and current row
+                ), 0),
+              0
+            )::bigint::text       as balance_after_minor
+          from payments p
+          where p.invoice_id = i.id
+        ) pm
+      ) as payments,
+
+      (
+        select coalesce(jsonb_agg(to_jsonb(rm) order by rm.sequence), '[]'::jsonb)
+        from (
+          select
+            r.id::text      as id,
+            r.sequence      as sequence,
+            r.channel::text as channel,
+            r.sent_at       as sent_at
+          from reminders r
+          where r.invoice_id = i.id
+        ) rm
+      ) as reminders
+
+    from invoices i
+    join clients c on c.id = i.client_id
+    left join settled s on s.invoice_id = i.id
+    left join latest_fx f on f.base = i.currency and i.currency <> ${BASE_CURRENCY}
+    where i.id = ${id}::uuid
+  `);
+
+  const row = (result.rows as Record<string, unknown>[])[0];
+  if (!row) return null;
+
+  const amountMinor = toBigInt(row.amount_minor);
+  const paidMinor = toBigInt(row.paid_minor);
+  const outstandingMinor = toBigInt(row.outstanding_minor);
+
+  const lineItems: InvoiceLine[] = (row.line_items as Record<string, unknown>[]).map(
+    (l) => ({
+      id: String(l.id),
+      position: Number(l.position),
+      description: String(l.description),
+      quantity: String(l.quantity),
+      unitAmountMinor: toBigInt(l.unit_amount_minor),
+      lineAmountMinor: toBigInt(l.line_amount_minor),
+    }),
+  );
+
+  const payments: InvoicePayment[] = (row.payments as Record<string, unknown>[]).map(
+    (p) => ({
+      id: String(p.id),
+      provider: String(p.provider),
+      providerPaymentId: String(p.provider_payment_id),
+      amountMinor: toBigInt(p.amount_minor),
+      currency: String(p.currency),
+      status: String(p.status) as PaymentStatus,
+      method: p.method === null || p.method === undefined ? null : String(p.method),
+      occurredAt: new Date(String(p.occurred_at)),
+      balanceAfterMinor: toBigInt(p.balance_after_minor),
+    }),
+  );
+
+  const reminders: InvoiceReminder[] = (row.reminders as Record<string, unknown>[]).map(
+    (r) => ({
+      id: String(r.id),
+      sequence: Number(r.sequence),
+      channel: String(r.channel),
+      sentAt: new Date(String(r.sent_at)),
+    }),
+  );
+
+  const rate = row.fx_rate ? String(row.fx_rate) : null;
+
+  return {
+    id: String(row.id),
+    number: String(row.number),
+    currency: String(row.currency),
+    amountMinor,
+    paidMinor,
+    outstandingMinor,
+    status: String(row.effective_status) as EffectiveStatus,
+    storedStatus: String(row.stored_status),
+    description: row.description === null ? null : String(row.description),
+    issuedAt: row.issued_at ? new Date(String(row.issued_at)) : null,
+    dueAt: row.due_at ? new Date(String(row.due_at)) : null,
+    sentAt: row.sent_at ? new Date(String(row.sent_at)) : null,
+    paidAt: row.paid_at ? new Date(String(row.paid_at)) : null,
+    daysOverdue: Number(row.days_overdue ?? 0),
+    client: {
+      id: String(row.client_id),
+      name: String(row.client_name),
+      email: row.client_email === null ? null : String(row.client_email),
+    },
+    lineItems,
+    payments,
+    reminders,
+    base: rate
+      ? {
+          currency: BASE_CURRENCY,
+          rate,
+          fetchedAt: new Date(String(row.fx_at)),
+          amountMinor: convertAtRate(amountMinor, rate),
+          paidMinor: convertAtRate(paidMinor, rate),
+          outstandingMinor: convertAtRate(outstandingMinor, rate),
+        }
+      : null,
+  };
+});

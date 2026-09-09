@@ -907,6 +907,16 @@ Say what is on the other side of the filter while you are at it: *"No invoices m
 filters. 47 on the books in total."* The count is what tells the user their ledger is
 intact and the filter is at fault, which is the actual question behind the empty screen.
 
+**Never call `notFound()` from inside a Suspense boundary.** Measured on the invoice
+detail page: with the read wrapped in `<Suspense>`, a missing invoice returned **HTTP
+200** — `not-a-uuid`, an absent uuid and a real invoice all came back 200 under curl. The
+boundary lets Next flush the shell before the suspended child resolves, so by the time
+`notFound()` throws, the status line has already gone out; the 404 UI renders under a 200,
+which is wrong for crawlers, uptime checks and anything reading the status rather than the
+pixels. Awaiting the read in the page body before the first flush returned all three to
+404. A page whose own title comes from the record has no meaningful shell to stream ahead
+of it anyway.
+
 ### Skeleton
 
 `bg-raised` blocks at `radius-xs`, matching the real content's box exactly. Shimmer is a
@@ -940,6 +950,26 @@ a 1600px-wide form is unusable. Marketing 1200px, prose 68ch.
 optional description `text-small` / `fg-secondary`, action cluster right-aligned.
 20px vertical padding, 1px `line-subtle` bottom rule. On table pages it sticks and
 compacts 72px → 52px on scroll, dropping the description.
+
+**Breadcrumb and title both take a node, not a string.** A breadcrumb that cannot be a
+link is not a breadcrumb, and it had only ever been used for a static label — the invoice
+detail page is the first caller that needed it to navigate. The title took a node for the
+same reason: an invoice number is the title of its own page and §7 puts invoice numbers in
+Plex Mono, so the caller wraps it in `money`. The alternative was a `mono` boolean on the
+component or a `<style>` override at the call site, and the face of one page's title is
+not the shared component's business.
+
+**Returning from a detail page returns to the list you left.** The list's row links carry
+the current query string as `?back=<encoded>`, and the detail breadcrumb decodes it —
+so a reader who filtered to overdue, sorted by amount and opened row four lands back on
+that view rather than on an unfiltered page 1 they have to rebuild.
+
+Not the `Referer` header: client-side navigation does not set it, a cross-origin arrival
+strips it under the default referrer policy, and a back link that remembers *sometimes* is
+worse than one that never claimed to. The param is explicit, survives a refresh and a
+bookmark, and is re-parsed against a whitelist of the list's own keys before it reaches an
+href, so a crafted link cannot smuggle anything through it. Name the carrier for what it
+is — `back`, never `from`, which is already the list's issued-from date filter.
 
 **Narrow screens: horizontal scroll with a sticky first column.** Not card-stacking.
 Justification: a ledger is read by comparison — is this amount larger than that one, are
@@ -1128,6 +1158,31 @@ data surface.
 than transitions being removed, so a state change still *reads* as a change — an
 instant swap is clearer than no feedback. Skeleton shimmer and all transform-based
 entrances are removed outright.
+
+---
+
+## 9b. Demo data: what exists is fixed, when it happened slides
+
+Not a visual rule, but it governs every figure in every screenshot, so it belongs with
+them. `buildDemoDataset()` is reproducible: the same fourteen clients, the same 48
+invoices with the same numbers, amounts and line-item splits, the same payments and
+reminders, and the same row ids — on every reset, forever. Only the dates move.
+
+The rule that enforces it: **no composition decision may read the clock.** Ids come from
+`uuidFor(<stable key>)` rather than `randomUUID()`, so `/invoices/<id>` survives a reset;
+invoice numbers carry a constant `LEDGER_YEAR`; every invoice draws its slot in a month
+(day 1-28, so one draw is valid in every month of every year) before any calendar is
+consulted; and the current month is no longer scaled by how much of it has elapsed —
+that scaling changed how many invoices *existed*, which is why a seed on the 8th produced
+89 line items and one on the 9th produced 87.
+
+The consequence to know about: **invoice numbers are identity, not sequence.** Paid
+invoices are anchored to calendar months so the six-month revenue window always ends in
+the current month; overdue ones are anchored to today so five days overdue stays five days
+overdue. Those two families slide against each other through the month, so a fixed
+numbering cannot also be in perfect date order. Measured across fourteen dates from 2026
+to 2030: 7 or 8 of 47 adjacent pairs sit out of date order, by at most ~15 days. Every
+list shows the issue date, and sorts by it by default.
 
 ---
 

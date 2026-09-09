@@ -12,6 +12,7 @@ import {
 } from '@/lib/db';
 import type { PaymentProvider } from '@/lib/db';
 import { getAdapter, KIND_TO_PAYMENT_STATUS } from '@/lib/gateways';
+import { convertAtRate } from '@/lib/money';
 import type { NormalizedEvent } from '@/lib/gateways';
 import { BASE_CURRENCY } from '@/lib/queries/dashboard';
 
@@ -77,31 +78,6 @@ type ClaimedEvent = {
   payload: unknown;
   attempts: number;
 };
-
-/* -------------------------------------------------------------------------- */
-/* Money helpers                                                              */
-/* -------------------------------------------------------------------------- */
-
-const RATE_SCALE = 8;
-const RATE_DIVISOR = 10n ** BigInt(RATE_SCALE);
-
-/**
- * Converts minor units at a numeric(18,8) rate, entirely in bigint.
- *
- * `Number(minor) * Number(rate)` would be simpler and wrong: it reintroduces
- * float rounding into a value the whole schema exists to keep exact. The rate
- * string is scaled to an integer instead, multiplied, then divided with
- * half-up rounding.
- */
-export function convertAtRate(minor: bigint, rate: string): bigint {
-  const [whole, fraction = ''] = rate.trim().split('.');
-  const scaledFraction = fraction.padEnd(RATE_SCALE, '0').slice(0, RATE_SCALE);
-  const scaledRate = BigInt(`${whole}${scaledFraction}`);
-
-  const product = minor * scaledRate;
-  // Half-up: add half a divisor before the integer division.
-  return (product + RATE_DIVISOR / 2n) / RATE_DIVISOR;
-}
 
 /* -------------------------------------------------------------------------- */
 /* Claim                                                                      */
