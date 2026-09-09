@@ -664,6 +664,19 @@ screenshot.
 - Sort indicator: a 1px copper underline beneath the active column header, not an icon
   swap.
 
+**A column shows a figure only when it says something another column does not.**
+Paid and Amount printed the same number at full money width on every settled invoice —
+twice a row, down the whole page, reporting what the status badge had already said. Paid
+now carries a figure only when part of the money has arrived, and a dash otherwise, which
+turns the column into a scan for exactly the rows that need chasing: anything with a
+figure in it is a partial. An overpayment shows too, in `refunded`, because paid-beyond-
+the-total is an anomaly somebody has to see — the test is `paid !== amount`, not
+`paid < amount`.
+
+The saving is not only visual. Collapsing that column to a dash on most rows took the
+table's min-content width from **1080px to 998px**, which is 82px less horizontal scroll
+on every narrow viewport.
+
 ### Status badge
 
 `radius-xs` · `padding 2px 8px` · `text-micro` uppercase · **3px left rule in the status
@@ -932,9 +945,32 @@ compacts 72px → 52px on scroll, dropping the description.
 Justification: a ledger is read by comparison — is this amount larger than that one, are
 these three all overdue. Card-stacking destroys column alignment, which destroys the
 tabular figures that are the entire typographic premise, and turns a 50-row scan into 50
-screens of scrolling. Horizontal scroll preserves the table; the invoice number column
-stays pinned so a row is always identifiable. Card-stacking is correct for feeds; this is
-not a feed.
+screens of scrolling. Horizontal scroll preserves the table. Card-stacking is correct for feeds; this is not a
+feed.
+
+**Pin both ends: identity on the left, the headline figure on the right.** One pinned
+column is not enough. Measured on the invoice ledger, the table's own min-content width is
+1080px — Invoice 150 · Client 185 · Status 118 · Issued 124 · Due 124 · Days over 94 ·
+Paid 139 · Amount 147 — while the scroll container gets 1127px at a 1440px viewport and
+967px at 1280px. The columns are not overallocated; at 1440px every one already carries
+20-50px of slack over its content. So at 1280px the table overflows by 117px, and because
+Amount is last in document order the 117px that falls off the right edge is exactly the
+amount: the reader sees `₦2,445,000.` and has to scroll to learn what the invoice is
+worth.
+
+No width tuning fixes that — 1080px of min-content will always exceed some viewport. Only
+anchoring does. Pin the column carrying the row's identity to the left and the column
+carrying its headline figure to the right; everything else scrolls between them. Verified
+at 1920 / 1440 / 1280 / 1100 / 900 / 768 / 560 / 400 / 360px: the amount is fully inside
+the visible container at every one, and stays there mid-scroll.
+
+Both pinned cells need their own opaque ground, or scrolled content shows through, and
+both must repeat the row hover so the row still reads as one object. Give the right-hand
+pin a `line` left border so it reads as an anchored edge rather than a floating overlay.
+
+The limit: two pins cost their combined width. Invoice 150 + Amount 147 = 297px, so below
+about 300px of container they start to overlap — measured at 2px of overlap at a 360px
+viewport. That is the floor of the pattern, not a bug to tune away.
 
 **The scroll cue.** A clipped column at the container edge is ambiguous: a clean vertical
 cut reads as the end of the table just as easily as the edge of the window, and at 560px
@@ -942,9 +978,13 @@ the invoice ledger cuts through the middle of a date. The cue is a **28px fade t
 surface ground at the right edge, shown only while there is more table to the right of
 it**. Content that continues fades; content that ends does not.
 
-**Right edge only.** A pinned first column is itself the signal that the left is anchored
-rather than lost, and a fade laid over it would erase the invoice number — the one value
-that identifies the row.
+**Right edge only, and inset past any right-hand pin.** A pinned first column is itself
+the signal that the left is anchored rather than lost, and a fade laid over it would erase
+the invoice number — the one value that identifies the row. The same argument applies at
+the other end once Amount is pinned there: `ScrollCue` measures any `[data-pinned-end]`
+cell and offsets the fade by its width, so the cue sits in the scrolling middle where the
+hidden content actually is. Measure with `ceil`, not `round` — a fractional column width
+rounded down leaves the fade overlapping the pin by a sub-pixel sliver.
 
 Use the **`ScrollCue`** component, which owns the scroll container and the overlay:
 

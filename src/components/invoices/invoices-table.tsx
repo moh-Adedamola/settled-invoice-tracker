@@ -8,12 +8,30 @@ import { StatusBadge, invoiceStatusKey } from '@/components/ui/status-badge';
 
 /**
  * §7 table: 44px rows, hairline rules, no zebra, sticky header, --row-hover.
- * §8 narrow screens: horizontal scroll with the invoice number pinned.
+ * §8 narrow screens: horizontal scroll between two pinned columns.
  *
  * Status comes from the shared derivation in `invoice-status.ts`, so a row
  * here says the same thing the dashboard says about the same invoice.
+ *
+ * ## Both ends are pinned, and why
+ *
+ * Measured: the table's own min-content width is 1080px — Invoice 150 ·
+ * Client 185 · Status 118 · Issued 124 · Due 124 · Days over 94 · Paid 139 ·
+ * Amount 147. The `min-w-[900px]` floor sits below that and never binds. The
+ * scroll container gets 1127px at a 1440px viewport, so the table fits, but
+ * only just; at 1280px it gets 967px and overflows by 117px. Amount is last in
+ * document order, so the 117px that falls off the right edge is exactly the
+ * amount — the reader sees `₦2,445,000.` and has to scroll to find out what the
+ * invoice is worth.
+ *
+ * No width tuning fixes that. The columns are not overallocated — at 1440px
+ * every one already carries 20-50px of slack over its content — and 1080px of
+ * min-content will always exceed some viewport. The only thing that makes the
+ * figure unloseable is anchoring it, so Amount is pinned right the way the
+ * invoice number is pinned left. The two anchors are the row's identity and the
+ * row's headline; the middle columns scroll between them.
  */
-const COLUMNS: Array<{
+const SCROLLING_COLUMNS: Array<{
   key: SortKey | null;
   label: string;
   align: 'left' | 'right';
@@ -22,7 +40,6 @@ const COLUMNS: Array<{
   { key: 'due', label: 'Due', align: 'left' },
   { key: null, label: 'Days over', align: 'right' },
   { key: null, label: 'Paid', align: 'right' },
-  { key: 'amount', label: 'Amount', align: 'right' },
 ];
 
 export function InvoicesTable({
@@ -47,6 +64,7 @@ export function InvoicesTable({
 
   const headCell =
     'sticky top-0 z-10 bg-surface px-3 py-2.5 text-micro font-medium uppercase whitespace-nowrap text-ink-muted';
+  const bodyCell = 'h-11 px-3 text-small whitespace-nowrap';
 
   return (
     <ScrollCue className="rounded-md border border-line bg-surface">
@@ -74,11 +92,11 @@ export function InvoicesTable({
                 direction={direction}
               />
             </th>
-            {COLUMNS.map((column) => (
+            {SCROLLING_COLUMNS.map((column) => (
               <th
                 key={column.label}
                 scope="col"
-                className={`${headCell} ${column.align === 'right' ? 'text-right last:pr-5' : 'text-left'}`}
+                className={`${headCell} ${column.align === 'right' ? 'text-right' : 'text-left'}`}
               >
                 {column.key ? (
                   <SortLink
@@ -93,61 +111,72 @@ export function InvoicesTable({
                 )}
               </th>
             ))}
+            <th
+              scope="col"
+              className={`${headCell} sticky right-0 z-20 border-l border-line pr-5 text-right`}
+            >
+              <SortLink
+                href={sortHref('amount')}
+                label="Amount"
+                active={sort === 'amount'}
+                direction={direction}
+                align="right"
+              />
+            </th>
           </tr>
         </thead>
 
         <tbody>
-          {result.rows.map((invoice) => (
-            <tr
-              key={invoice.id}
-              className="group border-t border-line-subtle transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
-            >
-              {/* Pinned: needs its own opaque ground or scrolled cells show
-                  through, and repeats the hover so the row reads as one.
-                  whitespace-nowrap is load-bearing — see §7. */}
-              <td className="money sticky left-0 z-10 h-11 bg-surface px-4 text-small whitespace-nowrap text-ink group-hover:bg-row-hover">
-                <Link
-                  href={`/invoices/${invoice.id}`}
-                  className="rounded-xs underline-offset-2 hover:underline"
+          {result.rows.map((invoice) => {
+            const badge = invoiceStatusKey(invoice.status);
+            return (
+              <tr
+                key={invoice.id}
+                className="group border-t border-line-subtle transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
+              >
+                {/* Pinned: needs its own opaque ground or scrolled cells show
+                    through, and repeats the hover so the row reads as one.
+                    whitespace-nowrap is load-bearing — see §7. */}
+                <td className="money sticky left-0 z-10 h-11 bg-surface px-4 text-small whitespace-nowrap text-ink group-hover:bg-row-hover">
+                  <Link
+                    href={`/invoices/${invoice.id}`}
+                    className="rounded-xs underline-offset-2 hover:underline"
+                  >
+                    {invoice.number}
+                  </Link>
+                </td>
+                <td className={`${bodyCell} text-ink`}>{invoice.clientName}</td>
+                <td className="h-11 px-3">
+                  <StatusBadge status={badge.key} label={badge.label} />
+                </td>
+                <td className={`money ${bodyCell} text-ink-muted`}>
+                  {invoice.issuedAt ? formatDateFull(invoice.issuedAt) : '—'}
+                </td>
+                <td className={`money ${bodyCell} text-ink-muted`}>
+                  {invoice.dueAt ? formatDateFull(invoice.dueAt) : '—'}
+                </td>
+                <td className={`money ${bodyCell} text-right`}>
+                  {invoice.daysOverdue > 0 ? (
+                    <span className="text-overdue">{invoice.daysOverdue}</span>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
+                </td>
+                <td className={`money ${bodyCell} text-right text-ink-secondary`}>
+                  <PaidCell invoice={invoice} />
+                </td>
+                {/* Pinned right — see the note at the top. Same opaque ground
+                    and hover treatment as the left anchor. */}
+                <td
+                  data-pinned-end=""
+                  className="money sticky right-0 z-10 h-11 border-l border-line bg-surface pr-5 pl-3 text-right text-small whitespace-nowrap text-ink group-hover:bg-row-hover"
                 >
-                  {invoice.number}
-                </Link>
-              </td>
-              <td className="h-11 px-3 text-small whitespace-nowrap text-ink">
-                {invoice.clientName}
-              </td>
-              <td className="h-11 px-3">
-                <StatusBadge {...toBadge(invoice.status)} />
-              </td>
-              <td className="money h-11 px-3 text-small whitespace-nowrap text-ink-muted">
-                {invoice.issuedAt ? formatDateFull(invoice.issuedAt) : '—'}
-              </td>
-              <td className="money h-11 px-3 text-small whitespace-nowrap text-ink-muted">
-                {invoice.dueAt ? formatDateFull(invoice.dueAt) : '—'}
-              </td>
-              <td className="money h-11 px-3 text-right text-small whitespace-nowrap">
-                {invoice.daysOverdue > 0 ? (
-                  <span className="text-overdue">{invoice.daysOverdue}</span>
-                ) : (
-                  <span className="text-ink-muted">—</span>
-                )}
-              </td>
-              <td className="money h-11 px-3 text-right text-small whitespace-nowrap text-ink-secondary">
-                {invoice.paidMinor > 0n ? (
-                  <>
-                    <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
-                    {formatMinorDigits(invoice.paidMinor)}
-                  </>
-                ) : (
-                  <span className="text-ink-muted">—</span>
-                )}
-              </td>
-              <td className="money h-11 pr-5 pl-3 text-right text-small whitespace-nowrap text-ink">
-                <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
-                {formatMinorDigits(invoice.amountMinor)}
-              </td>
-            </tr>
-          ))}
+                  <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
+                  {formatMinorDigits(invoice.amountMinor)}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </ScrollCue>
@@ -155,13 +184,30 @@ export function InvoicesTable({
 }
 
 /**
- * The list's derived status is one of six invoice states; the badge speaks in
- * eight presentation states. `invoiceStatusKey` is the only crossing between
- * them, so the list and the dashboard label the same invoice identically.
+ * Paid carries a figure only when it says something Amount does not.
+ *
+ * On a settled invoice the two columns printed the same number at full money
+ * width, twice a row, down the whole page — a column of noise reporting what
+ * the status badge had already said. It is now filled only when part of the
+ * money has arrived, which turns the column into a scan for exactly the rows
+ * that need chasing: anything with a figure here is a partial.
+ *
+ * An overpayment — paid beyond the total, usually a duplicate transfer or a
+ * refund not yet recorded — also shows, because that is an anomaly somebody has
+ * to see. `!==` rather than `<` is what keeps it visible.
  */
-function toBadge(status: InvoiceListRow['status']) {
-  const { key, label } = invoiceStatusKey(status);
-  return { status: key, label } as const;
+function PaidCell({ invoice }: { invoice: InvoiceListRow }) {
+  const notable = invoice.paidMinor > 0n && invoice.paidMinor !== invoice.amountMinor;
+
+  if (!notable) return <span className="text-ink-muted">—</span>;
+
+  const overpaid = invoice.paidMinor > invoice.amountMinor;
+  return (
+    <span className={overpaid ? 'text-refunded' : undefined}>
+      <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
+      {formatMinorDigits(invoice.paidMinor)}
+    </span>
+  );
 }
 
 function SortLink({

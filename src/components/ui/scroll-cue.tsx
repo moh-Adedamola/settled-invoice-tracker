@@ -33,11 +33,17 @@ import { useCallback, useState, useSyncExternalStore } from 'react';
  * ground the sidebar's collapse preference covers. The snapshot is a string so
  * that returning it repeatedly cannot loop.
  *
- * The server snapshot is `'none'`, so the first paint carries no cue and the
+ * The server snapshot carries no cue, so the first paint has none and the
  * client corrects it after hydration. That is the right way round: a cue
  * rendered before anything has been measured would be a guess.
  */
-type Edge = 'none' | 'end';
+
+/**
+ * `"<edge>:<inset>"`. A string rather than an object because
+ * `useSyncExternalStore` compares snapshots by identity, and a fresh object on
+ * every call is an infinite render loop.
+ */
+type Snapshot = `${'none' | 'end'}:${number}`;
 
 export function ScrollCue({
   className = '',
@@ -67,16 +73,31 @@ export function ScrollCue({
     [node],
   );
 
-  const getSnapshot = useCallback((): Edge => {
-    if (!node) return 'none';
+  const getSnapshot = useCallback((): Snapshot => {
+    if (!node) return 'none:0';
+
+    // A column pinned to the right edge sits above this overlay, so the fade
+    // has to stop where that column starts — laid over it, the fade would dim
+    // the one figure the pin exists to keep readable. Measured rather than
+    // passed in, so it survives the column being re-laid-out.
+    // ceil, not round: a fractional column width rounded down leaves the fade
+    // overlapping the pinned column by a sub-pixel sliver.
+    const pinned = node.querySelector('[data-pinned-end]');
+    const inset = pinned ? Math.ceil(pinned.getBoundingClientRect().width) : 0;
+
     const overflow = node.scrollWidth - node.clientWidth;
     // 1px of slack: sub-pixel layout leaves a fractional remainder on a table
     // that actually fits, and a cue that never switches off is a decoration.
-    if (overflow <= 1) return 'none';
-    return node.scrollLeft < overflow - 1 ? 'end' : 'none';
+    if (overflow <= 1) return `none:${inset}`;
+    return node.scrollLeft < overflow - 1 ? `end:${inset}` : `none:${inset}`;
   }, [node]);
 
-  const edge = useSyncExternalStore(subscribe, getSnapshot, () => 'none' as Edge);
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    () => 'none:0' as Snapshot,
+  );
+  const [edge, inset] = snapshot.split(':');
 
   return (
     <div className={`relative ${className}`}>
@@ -90,6 +111,7 @@ export function ScrollCue({
         aria-hidden="true"
         data-visible={edge === 'end'}
         className="scroll-cue-edge"
+        style={{ right: `${inset}px` }}
       />
     </div>
   );
