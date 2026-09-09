@@ -96,7 +96,9 @@ export default async function EditInvoicePage({
             lineItems: invoice.lineItems.map((line) => ({
               description: line.description,
               quantity: line.quantity,
-              unitAmount: formatMinorDigits(line.unitAmountMinor).replace(/,/g, ''),
+              // Grouped, matching what the field shows while typing. The
+              // parser strips separators, so this round-trips exactly.
+              unitAmount: formatMinorDigits(line.unitAmountMinor),
             })),
           }}
         />

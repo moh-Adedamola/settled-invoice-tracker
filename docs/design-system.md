@@ -925,6 +925,29 @@ pixels. Awaiting the read in the page body before the first flush returned all t
 404. A page whose own title comes from the record has no meaningful shell to stream ahead
 of it anyway.
 
+### Inline destructive controls
+
+Not everything destructive earns a confirmation. Removing an unsaved line from an invoice
+editor destroys nothing that exists yet, and a confirm on every removed row is the friction
+that teaches people to click through confirmations — which is what makes the ones that
+matter fail. §7's confirm-in-place is for actions that are consequential or hard to undo.
+
+What an inline destructive control does need is to **not look like its neighbours**. Three
+identical bordered buttons in a row say that moving a line and deleting one are the same
+kind of act.
+
+**Separate by structure first, colour second.** Group the positional controls into one
+segmented control — a single border with a divider between them, reading as a pair — and
+put the destructive one outside it across a real gap (12px), unbordered. The grouping alone
+tells them apart for a reader who cannot see the colour difference, which is the same
+argument §3.3 makes for badges. Colour then reinforces it: `ink-muted` at rest, quieter
+than the pair, and `failed` on hover and focus.
+
+Disable rather than hide when the action is temporarily impossible — the last remaining
+line cannot be removed — and say why in a `title`. That differs from §7's rule for
+*viewer* affordances, which are hidden: a control that is disabled for a reason the user
+can change is worth showing; one they can never use is not.
+
 ### Destructive and irreversible actions
 
 **Confirm in place, not in a modal.** §7 gives modals to things that need focus trapping
@@ -953,6 +976,42 @@ endpoint with a nice hover state. `lax` does not send the cookie on a cross-site
 which is what makes a form safe and a link not. Edit is a link precisely because it only
 navigates.
 
+### Select
+
+**A select carries `bg-overlay`; a text input does not.** That is not a style preference —
+the native popup is drawn by the OS from the `<select>` and its `<option>`s, and nothing
+else on the page reaches it.
+
+Measured on `/invoices/new` before the fix, with thirteen client names illegible in the
+popup: root `color-scheme` **dark**, select `color-scheme` **dark** (inherited, already
+correct), option colour `rgb(235,239,244)` — and option background **`rgba(0,0,0,0)`**.
+Near-white text on no background, so the OS painted its own light ground beneath it.
+Setting `color-scheme: dark` on the element, the usual advice, changed nothing measurable
+because it was already dark. The missing thing was a background.
+
+```css
+select,
+option {
+  background-color: var(--bg-overlay);
+  color: var(--fg-primary);
+}
+```
+
+Both, not just `select`: the popup paints each row from its own option, so a list
+background alone leaves the rows unstyled. Tokens rather than literals, so it follows the
+theme instead of pinning the popup dark in a light app. `--bg-overlay` is §6's surface for
+popovers and dropdowns, which is what this is.
+
+**Never put `bg-transparent` on a select.** A utility beats `@layer base`, so it takes the
+popup's ground away again. Give inputs and selects separate class strings rather than one
+shared `field` — a select that opens a surface and an input that is a well are different
+controls, and the difference has consequences.
+
+Verified: option ground `rgb(29,36,46)` with text at **13.53:1**, in both OS colour
+schemes, on the invoice form and the list's filter bar. **Not verified: the popup itself.**
+It is an OS-level window that a headless screenshot does not capture, so the rendering
+needs one look on a real machine.
+
 ### Form fields
 
 Inputs follow §7's text-input spec. Two rules that only surface once a form can fail:
@@ -963,6 +1022,18 @@ with one bad unit price, and the line items — controlled — kept their values
 client, both dates and the description came back blank. The user fixes the one field the
 error names and silently loses four they never touched. `defaultValue` is the trap: it is
 the natural thing to write, and it is exactly what empties on a failed submit.
+
+**Group a money field as it is typed.** `6700000` in a unit-price field is ambiguous until
+something else resolves it, which in a finance tool is a factor-of-ten error waiting to
+happen; `6,700,000` is legible at a glance. This is only safe because the parser strips
+grouping separators before it reads the number, so the field's value, the value the form
+posts, the browser's running total and the server's stored total are all the same string
+through the same parser. **Never add formatting the parser does not already accept.**
+
+Grouping has to move the caret itself. Inserting a separator to the left of the caret
+pushes the text right while the caret keeps its old index, so it walks backwards through
+the number as you type — `6,70|0,000`. Count the significant characters before the caret
+and find that count again in the reformatted string.
 
 **A money field is `inputMode="decimal"`, never `type="number"`.** A number input accepts
 exponent notation and lets the browser round, which is precisely the precision this ledger

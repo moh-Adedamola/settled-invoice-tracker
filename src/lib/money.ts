@@ -73,6 +73,62 @@ export function parseDecimalToMinor(input: string, currency: string): ParsedMone
   return { ok: true, minor };
 }
 
+/* --------------------------------------------------------------------------
+   Formatting a money field WHILE it is being typed
+   --------------------------------------------------------------------------
+
+   `6700000` in a unit-price field is ambiguous until the line total resolves it,
+   which is a factor-of-ten error waiting to happen in a tool whose entire point
+   is that the figures are right. Grouping it as `6,700,000` makes the magnitude
+   readable at a glance.
+
+   This is safe precisely because `parseDecimalToMinor` strips grouping
+   separators before it parses. The field's value carries commas, the form posts
+   the value with commas, and both the browser's running total and the server's
+   stored total run the same string through the same parser — so the two agree
+   to the kobo and the deferred trigger has nothing to reject. Formatting that
+   the parser did not already accept would be a different and much worse idea.
+   -------------------------------------------------------------------------- */
+
+/** Keeps digits and at most one decimal point; drops everything else. */
+export function sanitiseMoneyInput(raw: string): string {
+  const cleaned = raw.replace(/[^\d.]/g, '');
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot === -1) return cleaned;
+  return cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+}
+
+/**
+ * Groups the whole part in threes, leaving the fraction alone.
+ *
+ * A trailing point survives — someone typing `6700000.` is mid-entry, and
+ * eating the character they just pressed is how a field fights its user.
+ */
+export function groupDecimal(value: string): string {
+  const dot = value.indexOf('.');
+  const whole = dot === -1 ? value : value.slice(0, dot);
+  const rest = dot === -1 ? '' : value.slice(dot);
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + rest;
+}
+
+/**
+ * Where the caret should sit after reformatting.
+ *
+ * Grouping inserts characters to the left of the caret, so leaving the caret at
+ * its old index walks it backwards through the number as the user types.
+ * Counting significant characters — digits and the point — rather than raw
+ * offsets is what keeps it in place across an inserted separator.
+ */
+export function caretAfterGrouping(formatted: string, significantBefore: number): number {
+  let seen = 0;
+  let index = 0;
+  while (index < formatted.length && seen < significantBefore) {
+    if (/[\d.]/.test(formatted[index]!)) seen += 1;
+    index += 1;
+  }
+  return index;
+}
+
 export type ParsedQuantity =
   | { ok: true; value: string }
   | { ok: false; reason: 'empty' | 'malformed' | 'zero' | 'too-large' };

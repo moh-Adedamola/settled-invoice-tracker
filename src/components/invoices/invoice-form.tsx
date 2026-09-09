@@ -6,7 +6,14 @@ import Link from 'next/link';
 import { EMPTY_FORM_STATE, type FormState } from '@/lib/invoices/form-state';
 import type { InvoiceFilterOptions } from '@/lib/queries/invoices';
 import { currencySymbol, formatMinorDigits } from '@/lib/format';
-import { multiplyByQuantity, parseDecimalToMinor, parseQuantity } from '@/lib/money';
+import {
+  caretAfterGrouping,
+  groupDecimal,
+  multiplyByQuantity,
+  parseDecimalToMinor,
+  parseQuantity,
+  sanitiseMoneyInput,
+} from '@/lib/money';
 import { CURRENCIES, MAX_LINE_ITEMS } from '@/lib/invoices/form-schema';
 
 /* ==========================================================================
@@ -138,6 +145,14 @@ export function InvoiceForm({
 
   const field =
     'h-9 w-full rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
+  /*
+   * A select keeps the `bg-overlay` ground that @layer base gives it, so no
+   * `bg-transparent` here. The ground is not decoration: the OS draws the
+   * native popup from the select and its options, and a transparent one leaves
+   * the popup on the OS's own light ground with near-white text on it.
+   */
+  const selectField =
+    'h-9 w-full rounded-sm border border-line-strong px-2.5 text-small text-ink';
   const label = 'text-micro uppercase text-ink-muted';
 
   return (
@@ -162,7 +177,7 @@ export function InvoiceForm({
               name="clientId"
               value={header.clientId}
               onChange={(e) => setField('clientId', e.target.value)}
-              className={field}
+              className={selectField}
             >
               <option value="">Choose a client</option>
               {options.clients.map((client) => (
@@ -179,7 +194,7 @@ export function InvoiceForm({
               name="currency"
               value={currency}
               onChange={(e) => setField('currency', e.target.value)}
-              className={field}
+              className={selectField}
             >
               {CURRENCIES.map((code) => (
                 <option key={code} value={code}>
@@ -294,7 +309,8 @@ export function InvoiceForm({
                     value={line.unitAmount}
                     onChange={(v) => updateLine(line.key, { unitAmount: v })}
                     errors={errorsFor(`lineItems.${index}.unitAmount`)}
-                    width="w-36"
+                    width="w-40"
+                    money
                   />
                   <div className="ml-auto flex flex-col items-end gap-1">
                     <span className={label}>Line total</span>
@@ -403,6 +419,7 @@ function LineField({
   onChange,
   errors,
   width,
+  money = false,
 }: {
   label: string;
   name: string;
@@ -410,7 +427,36 @@ function LineField({
   onChange: (value: string) => void;
   errors?: string[];
   width: string;
+  /** Group the whole part in threes as the user types. */
+  money?: boolean;
 }) {
+  /*
+   * Grouping has to reposition the caret itself. Inserting a separator to the
+   * left of the caret pushes the text right while the caret stays at its old
+   * index, so it walks backwards through the number as you type — 6700000
+   * becomes 6,70|0,000 with the cursor stranded mid-figure. Counting the
+   * significant characters before the caret and finding that same count in the
+   * reformatted string is what holds it in place.
+   */
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.target;
+    if (!money) {
+      onChange(input.value);
+      return;
+    }
+
+    const caret = input.selectionStart ?? input.value.length;
+    const significantBefore = input.value.slice(0, caret).replace(/[^\d.]/g, '').length;
+    const formatted = groupDecimal(sanitiseMoneyInput(input.value));
+    onChange(formatted);
+
+    // After React has written the value back, not before.
+    const next = caretAfterGrouping(formatted, significantBefore);
+    requestAnimationFrame(() => {
+      if (document.activeElement === input) input.setSelectionRange(next, next);
+    });
+  };
+
   return (
     <div className={`flex flex-col gap-1 ${width}`}>
       <span className="text-micro uppercase text-ink-muted">{label}</span>
@@ -423,7 +469,7 @@ function LineField({
         inputMode="decimal"
         autoComplete="off"
         aria-label={label}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleChange}
         className={`money h-9 w-full rounded-sm border px-2.5 text-right text-small text-ink ${
           errors ? 'border-failed' : 'border-line-strong'
         } bg-transparent`}
@@ -437,6 +483,26 @@ function LineField({
   );
 }
 
+/**
+ * Reorder and remove.
+ *
+ * These were three identical bordered buttons in a row, which said that moving
+ * a line and deleting one are the same kind of act. They are not: two are
+ * positional and undone by pressing the other arrow, and the third destroys
+ * work with nothing to undo it with.
+ *
+ * The separation is structural before it is chromatic. The arrows are one
+ * segmented control — a single bordered group with a divider between them,
+ * reading as a pair — and remove sits outside it across a gap, unbordered, so
+ * the grouping alone distinguishes them for a reader who cannot see the colour
+ * difference. Colour then reinforces it: remove is `ink-muted` at rest and
+ * `failed` on hover and focus, which is the §3 destructive token.
+ *
+ * No confirmation, deliberately. §7 asks for one on actions that are
+ * consequential or hard to undo, and this is neither — nothing is saved yet,
+ * and re-adding a line costs three fields. A confirm on every removed row is
+ * the kind of friction that teaches people to click through confirmations.
+ */
 function RowControls({
   index,
   count,
@@ -448,35 +514,40 @@ function RowControls({
   onMove: (index: number, delta: number) => void;
   onRemove: () => void;
 }) {
-  const button =
-    'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border border-line-strong text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-30';
+  const arrow =
+    'inline-flex h-8 w-8 shrink-0 items-center justify-center text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-30';
 
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="flex shrink-0 items-center gap-3">
+      <div className="flex items-center overflow-hidden rounded-sm border border-line-strong">
+        <button
+          type="button"
+          className={arrow}
+          onClick={() => onMove(index, -1)}
+          disabled={index === 0}
+          aria-label={`Move line ${index + 1} up`}
+        >
+          ↑
+        </button>
+        <span aria-hidden="true" className="h-5 w-px shrink-0 bg-line-strong" />
+        <button
+          type="button"
+          className={arrow}
+          onClick={() => onMove(index, 1)}
+          disabled={index === count - 1}
+          aria-label={`Move line ${index + 1} down`}
+        >
+          ↓
+        </button>
+      </div>
+
       <button
         type="button"
-        className={button}
-        onClick={() => onMove(index, -1)}
-        disabled={index === 0}
-        aria-label={`Move line ${index + 1} up`}
-      >
-        ↑
-      </button>
-      <button
-        type="button"
-        className={button}
-        onClick={() => onMove(index, 1)}
-        disabled={index === count - 1}
-        aria-label={`Move line ${index + 1} down`}
-      >
-        ↓
-      </button>
-      <button
-        type="button"
-        className={button}
         onClick={onRemove}
         disabled={count === 1}
         aria-label={`Remove line ${index + 1}`}
+        title={count === 1 ? 'An invoice needs at least one line' : undefined}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-failed-bg hover:text-failed focus-visible:text-failed disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
       >
         ✕
       </button>

@@ -441,6 +441,30 @@
     color: var(--accent-fg);
   }
 
+  /* Native select popups.
+
+     The popup is drawn by the OS, not by the page, and it takes its colours
+     from the <select> and its <option>s rather than from anything around them.
+     Measured on /invoices/new before this rule: root color-scheme `dark`,
+     select color-scheme `dark` (inherited, correct), option color
+     `rgb(235,239,244)` — and option background `rgba(0,0,0,0)`. Near-white text
+     on no background, so the OS painted its own light ground underneath and the
+     thirteen client names were invisible.
+
+     `color-scheme: dark` on the element is the usual advice and does nothing
+     here, because it was already dark; the missing piece was a background. It
+     is set on `option` as well as `select` because the popup paints each row
+     from its own option, and a list background alone leaves the rows unstyled.
+
+     Tokens, not literals, so this follows the theme rather than pinning the
+     popup dark in a light app. --bg-overlay is §6's surface for popovers and
+     dropdowns, which is exactly what this is. */
+  select,
+  option {
+    background-color: var(--bg-overlay);
+    color: var(--fg-primary);
+  }
+
   /* Every interactive element, one ring. :focus-visible only - never :focus, so
      pointer users do not get a ring on click. Overridable by `ring-inverse`. */
   :focus-visible {

@@ -39,6 +39,9 @@ export function InvoiceFilters({
     Boolean(selected.clientId || selected.currency || selected.issuedFrom || selected.issuedTo || selected.q);
 
   const field = 'h-9 rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
+  // No bg-transparent: a select keeps the bg-overlay ground @layer base gives
+  // it, which is what the OS paints the native popup from. See §7.
+  const selectField = 'h-9 rounded-sm border border-line-strong px-2.5 text-small text-ink';
   const label = 'text-micro uppercase text-ink-muted';
 
   return (
@@ -68,7 +71,7 @@ export function InvoiceFilters({
           <label htmlFor="client" className={label}>
             Client
           </label>
-          <select id="client" name="client" defaultValue={selected.clientId} className={field}>
+          <select id="client" name="client" defaultValue={selected.clientId} className={selectField}>
             <option value="">All clients</option>
             {options.clients.map((client) => (
               <option key={client.id} value={client.id}>
@@ -82,7 +85,7 @@ export function InvoiceFilters({
           <label htmlFor="currency" className={label}>
             Currency
           </label>
-          <select id="currency" name="currency" defaultValue={selected.currency} className={field}>
+          <select id="currency" name="currency" defaultValue={selected.currency} className={selectField}>
             <option value="">Any</option>
             {options.currencies.map((currency) => (
               <option key={currency} value={currency}>
