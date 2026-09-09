@@ -664,6 +664,14 @@ screenshot.
 - Sort indicator: a 1px copper underline beneath the active column header, not an icon
   swap.
 
+**Order columns by what has to be read together, and put the widest opaque identifier
+last.** In the invoice payment history, Reference — a 214px column of strings like
+`pi_3OH7t6kSPrRuky3HQtqhtz0s` — sat in the middle and pushed the table to 933px against
+798px of container at 1440px. The column it pushed off the right edge was Balance after,
+the one column that exists to prove a failed attempt leaves the balance untouched. Amount
+and Balance after now sit side by side, so a row reads "₦290,628 paid, ₦1,421,172 left" in
+one movement, and the long string nobody scans and everybody copies is what scrolls.
+
 **A column shows a figure only when it says something another column does not.**
 Paid and Amount printed the same number at full money width on every settled invoice —
 twice a row, down the whole page, reporting what the status badge had already said. Paid
@@ -971,11 +979,28 @@ bookmark, and is re-parsed against a whitelist of the list's own keys before it 
 href, so a crafted link cannot smuggle anything through it. Name the carrier for what it
 is — `back`, never `from`, which is already the list's issued-from date filter.
 
-**Narrow screens: horizontal scroll with a sticky first column.** Not card-stacking.
-Justification: a ledger is read by comparison — is this amount larger than that one, are
-these three all overdue. Card-stacking destroys column alignment, which destroys the
+**Narrow screens: horizontal scroll with a sticky first column — down to `md`, then
+stacked entries.** A ledger is read by comparison — is this amount larger than that one,
+are these three all overdue. Card-stacking destroys column alignment, which destroys the
 tabular figures that are the entire typographic premise, and turns a 50-row scan into 50
-screens of scrolling. Horizontal scroll preserves the table. Card-stacking is correct for feeds; this is not a
+screens of scrolling.
+
+**That argument holds exactly as long as there is a column to compare down, and no
+longer.** Measured on the invoice table, which has eight columns and two pins:
+
+| viewport | container | columns actually readable |
+| --- | --- | --- |
+| 360px | 295px | Invoice, Amount — the two pins, nothing between them |
+| 390px | 325px | Invoice, Amount |
+| 430px | 365px | Invoice, Client, Amount |
+| 560px | 495px | Invoice, Client, Amount — Status sits *under* the Amount pin |
+| 768px | 703px | Invoice, Client, Status, Amount |
+
+At 360px the two pins want 297px of a 295px container: the scrolling middle is zero pixels
+wide, the client name is not clipped but absent, and the scroll cue — inset by the pin
+width — lands on top of the pinned invoice number and dims it, because there is nothing
+else left for it to sit over. Comparison down a column is not what is being lost there;
+it has already been lost, along with the column. Horizontal scroll preserves the table. Card-stacking is correct for feeds; this is not a
 feed.
 
 **Pin both ends: identity on the left, the headline figure on the right.** One pinned
@@ -998,9 +1023,38 @@ Both pinned cells need their own opaque ground, or scrolled content shows throug
 both must repeat the row hover so the row still reads as one object. Give the right-hand
 pin a `line` left border so it reads as an anchored edge rather than a floating overlay.
 
-The limit: two pins cost their combined width. Invoice 150 + Amount 147 = 297px, so below
-about 300px of container they start to overlap — measured at 2px of overlap at a 360px
-viewport. That is the floor of the pattern, not a bug to tune away.
+**The lower bound on pinning both ends, stated.** Two pins cost their combined width, and
+the columns between them need their own. The four columns a ledger row cannot do without —
+identity, counterparty, state, amount — need 150 + 185 + 118 + 147 = **600px of table**,
+so roughly **650px of viewport** once the shell's gutters are taken out. Below that, one of
+the four is always underneath a pin.
+
+So: **pin both ends at `md` (768px) and above; below `md`, stop rendering a table.** 768 is
+the first standard breakpoint that clears 650 with room to spare, and it is where the
+sidebar has already collapsed to a strip. Do not tune the pins to fit a phone — 297px of
+pin in a 295px container is not a rounding problem, and the earlier note here about a
+"300px floor with 2px of overlap" understated it: the pattern stops working around 650px,
+not 300px.
+
+**Below `md`: stacked entries, not a broken table and not floating cards.** One bordered
+container, entries separated by the same `line-subtle` hairline the table uses, no zebra
+and no per-entry shadow — §6 spends elevation on genuine layers, and twenty-five shadowed
+cards would be twenty-five objects where the ledger is one. Each entry is a link to the
+detail page and carries, in three lines: the number in Plex Mono with the status badge
+opposite; the client name, which is the one line allowed to wrap; and the date or overdue
+count with the amount flush right.
+
+**The tabular-figure premise is preserved, not abandoned.** Every entry is the same width
+and the amount sits against the same right padding, so the amounts still form one aligned
+column of tabular figures down the page — verified at 360, 390, 430 and 560px, where all
+25 amounts share a single right edge in IBM Plex Mono with `tabular-nums`. That is more
+alignment than the table achieves at 360px, where the amount column can only be reached by
+scrolling and cannot be compared with the row above it at all.
+
+Sorting moves with the layout: the table sorts from its column headers, and the stacked
+view gets a compact sort bar carrying the same keys and the same 2px copper underline on
+the active one, so the two layouts say "sorted by this" the same way. A list that cannot
+be reordered on a phone is a different product, not a smaller one.
 
 **The scroll cue.** A clipped column at the container edge is ambiguous: a clean vertical
 cut reads as the end of the table just as easily as the edge of the window, and at 560px
@@ -1164,9 +1218,18 @@ entrances are removed outright.
 ## 9b. Demo data: what exists is fixed, when it happened slides
 
 Not a visual rule, but it governs every figure in every screenshot, so it belongs with
-them. `buildDemoDataset()` is reproducible: the same fourteen clients, the same 48
+them. `buildDemoDataset()` is reproducible: the same fourteen clients, the same 52
 invoices with the same numbers, amounts and line-item splits, the same payments and
 reminders, and the same row ids — on every reset, forever. Only the dates move.
+
+**The dataset has to exercise the design system, not just fill it.** A token that never
+renders is a token nobody has checked. Two shapes are seeded deliberately for that reason:
+most invoices carry two to four line items rather than one (a single-line invoice prints
+the same figure as the line total, the invoice total and the summary total, which teaches
+the reader nothing), and four invoices are part-paid with two or three succeeded payments
+against them — one with a failed attempt interleaved — so the `partial` status token
+renders and the payment history's running balance shows a real descending sequence with an
+attempt that visibly does not move it.
 
 The rule that enforces it: **no composition decision may read the clock.** Ids come from
 `uuidFor(<stable key>)` rather than `randomUUID()`, so `/invoices/<id>` survives a reset;

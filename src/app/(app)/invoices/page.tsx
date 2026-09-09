@@ -25,6 +25,7 @@ import {
   type RawSearchParams,
 } from '@/lib/search-params';
 import { EmptyState } from '@/components/dashboard/empty-state';
+import { InvoiceCards } from '@/components/invoices/invoice-cards';
 import { InvoiceFilters } from '@/components/invoices/invoice-filters';
 import { InvoicesPagination } from '@/components/invoices/invoices-pagination';
 import { InvoicesTable } from '@/components/invoices/invoices-table';
@@ -194,14 +195,24 @@ async function InvoiceList({
     );
   }
 
+  const sort = params?.sort ?? DEFAULT_SORT;
+  const direction = params?.direction ?? DEFAULT_DIRECTION;
+
   return (
     <div className="flex flex-col gap-4">
-      <InvoicesTable
-        result={result}
-        query={query}
-        sort={params?.sort ?? DEFAULT_SORT}
-        direction={params?.direction ?? DEFAULT_DIRECTION}
-      />
+      {/*
+        Two renderings of one query, chosen by width in CSS rather than by
+        measuring the client, so the correct one is in the first paint.
+        The cutover is `md` — below it the table cannot show the invoice number,
+        client, status and amount without one of them falling under a pinned
+        column. See the note in invoice-cards.tsx for the measurements.
+      */}
+      <div className="md:hidden">
+        <InvoiceCards result={result} query={query} sort={sort} direction={direction} />
+      </div>
+      <div className="hidden md:block">
+        <InvoicesTable result={result} query={query} sort={sort} direction={direction} />
+      </div>
       <InvoicesPagination
         page={result.page}
         pageCount={result.pageCount}

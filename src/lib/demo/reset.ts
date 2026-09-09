@@ -724,6 +724,38 @@ export function buildDemoDataset(): DemoDataset {
     );
   }
 
+  /*
+   * --- part paid (4): issued, not yet due, some of the money in ---------------
+   *
+   * Without these the ledger has no invoice that resolves to `partial`, so the
+   * partial status token is never rendered and the detail page's running
+   * balance never actually descends — every invoice is all-or-nothing.
+   *
+   * The derived rule (see invoice-status.ts) says partial means: not draft or
+   * void, something settled, something still outstanding, and NOT past due —
+   * a partly-paid invoice that is also overdue reads as overdue, because that
+   * is what needs acting on. So these are dated forward: issued a while back on
+   * a longer term, with the due date still ahead.
+   */
+  const partialInvoices: BuiltInvoice[] = [];
+  for (let n = 0; n < 4; n++) {
+    // Longer terms than the 14/30 used elsewhere: instalments against a
+    // two-week invoice are not a thing anyone does.
+    const term = pick([30, 45]);
+    const daysUntilDue = randInt(6, 20);
+    const spec: TimeSpec = { kind: 'dated', dueInDays: daysUntilDue, term };
+    const issuedAt = renderIssuedAt(spec, NOW);
+    const invoice = makeInvoice({
+      status: 'partial',
+      issuedAt,
+      dueAt: addDays(NOW, daysUntilDue),
+      createdAt: addHours(issuedAt, -2),
+      sortKey: sortKeyFor(spec),
+    });
+    builtInvoices.push(invoice);
+    partialInvoices.push(invoice);
+  }
+
   // --- draft (3): never issued, so no issuedAt/dueAt/sentAt ------------------
   for (let n = 0; n < 3; n++) {
     const daysAgo = randInt(1, 21);
@@ -895,6 +927,68 @@ export function buildDemoDataset(): DemoDataset {
       occurredAt: clamp(addHours(NOW, -randInt(3, 40)), invoice.issuedAt!),
     });
   }
+
+  /*
+   * Instalments against the part-paid invoices.
+   *
+   * Two or three succeeded payments that deliberately do NOT sum to the total,
+   * so the invoice stays open and the detail page's balance-after column shows
+   * a real descending sequence instead of one line straight to zero.
+   *
+   * The first of them carries a failed attempt in the middle of its
+   * instalments. That is the case the running balance exists to make legible:
+   * the failed row appears in the history at the same balance as the row above
+   * it, because the balance is summed with `filter (where status =
+   * 'succeeded')`. Without a failure sitting between two successes there is
+   * nothing on the page that demonstrates the filter is doing anything.
+   */
+  partialInvoices.forEach((invoice, index) => {
+    const issuedAt = invoice.issuedAt!;
+    const instalments = index === 0 ? 3 : pick([2, 2, 3]);
+
+    /*
+     * How much has actually landed. Capped well below the total: at 100% the
+     * invoice resolves to `paid` and stops being the case being built, and the
+     * exact-sum split below would hide that in a rounding remainder.
+     */
+    const settled = (invoice.amountMinor * BigInt(randInt(35, 70))) / 100n;
+
+    // Split into instalments that sum to exactly `settled` — the last one takes
+    // the remainder, so no rounding is lost or invented.
+    const parts: bigint[] = [];
+    let left = settled;
+    for (let n = 0; n < instalments - 1; n++) {
+      const share = (left * BigInt(randInt(40, 60))) / 100n;
+      parts.push(share);
+      left -= share;
+    }
+    parts.push(left);
+
+    let day = 2;
+    parts.forEach((amountMinor, n) => {
+      // One failed attempt, between the first and second instalment.
+      if (index === 0 && n === 1) {
+        addPayment({
+          invoice,
+          client: invoice.client,
+          currency: invoice.currency,
+          amountMinor,
+          status: 'failed',
+          occurredAt: clamp(addDays(issuedAt, day), issuedAt),
+        });
+        day += 2;
+      }
+      addPayment({
+        invoice,
+        client: invoice.client,
+        currency: invoice.currency,
+        amountMinor,
+        status: 'succeeded',
+        occurredAt: clamp(addDays(issuedAt, day), issuedAt),
+      });
+      day += 3;
+    });
+  });
 
   // 1 refund, sitting alongside the original succeeded payment on that invoice.
   const refunded = paidInvoices[Math.floor(rand() * paidInvoices.length)]!;
@@ -1092,9 +1186,29 @@ export function buildDemoDataset(): DemoDataset {
   for (const invoice of builtInvoices) {
     const total = invoice.amountMinor;
 
-    // Small invoices read oddly split four ways.
+    /*
+     * How many lines this invoice carries. Weighted, not uniform.
+     *
+     * `randInt(1, maxLines)` made roughly half of all invoices single-line, and
+     * a single-line invoice prints the same figure three times on the detail
+     * page — as the line total, as the invoice total under the double rule, and
+     * again as the summary total. Three renderings of one number teach the
+     * reader nothing about how the itemisation is meant to read.
+     *
+     * A single line is still a real case (one retainer, one fixed-price job),
+     * so it stays — at about one invoice in ten rather than one in two.
+     *
+     * These are weighted arrays rather than a random-then-branch, so each draw
+     * is one `pick()`: the RNG stream advances by exactly one step whatever the
+     * outcome, which is what keeps the rest of the dataset stable if the
+     * weights are ever retuned.
+     */
     const maxLines = total < 30_000_00n ? 2 : 4;
-    const lineCount = randInt(1, maxLines);
+    // Small invoices still read oddly split four ways.
+    const lineCount =
+      maxLines === 2
+        ? pick([2, 2, 2, 2, 1])
+        : pick([2, 2, 2, 3, 3, 3, 3, 4, 4, 1]);
 
     // Unit prices land on whole currency units for NGN, and on 50 minor units
     // (£0.50 / $0.50) for the foreign currencies, which is how they are quoted.

@@ -23,6 +23,21 @@ const PROVIDER_LABEL: Record<string, string> = {
  * `filter (where status = 'succeeded')` — a failed row therefore repeats the
  * balance above it rather than reducing it. That repetition is the point: it is
  * visible evidence that the attempt did not count.
+ *
+ * ## Column order
+ *
+ * Amount and Balance after are adjacent, and Reference is last.
+ *
+ * Reference was in the middle, and it is the widest column here — 206px, driven
+ * by ids like `pi_3OH7t6kSPrRuky3HQtqhtz0s`. That pushed the table to 933px
+ * against 798px of container at a 1440px viewport, and the column it pushed off
+ * the right edge was Balance after: the one column that exists to show a failed
+ * attempt leaving the balance untouched was the one you had to scroll to find.
+ *
+ * Putting the two money columns side by side fixes that and reads better
+ * anyway — "₦290,628 paid, ₦1,421,172 left" on one line — and leaves the long
+ * opaque string, which nobody scans and everybody copies, as the thing that
+ * scrolls.
  */
 export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
   const symbol = currencySymbol(invoice.currency);
@@ -67,16 +82,17 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
                   Provider
                 </th>
                 <th scope="col" className={`${headCell} text-left`}>
-                  Reference
-                </th>
-                <th scope="col" className={`${headCell} text-left`}>
                   Status
                 </th>
                 <th scope="col" className={`${headCell} text-right`}>
                   Amount
                 </th>
-                <th scope="col" className={`${headCell} pr-5 text-right`}>
+                <th scope="col" className={`${headCell} text-right`}>
                   Balance after
+                </th>
+                {/* Last, and the first to scroll away. See the note above. */}
+                <th scope="col" className={`${headCell} pr-5 text-left`}>
+                  Reference
                 </th>
               </tr>
             </thead>
@@ -99,12 +115,6 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
                         <span className="text-ink-muted"> · {payment.method}</span>
                       ) : null}
                     </td>
-                    {/* Mono, because a provider reference is a string someone
-                        pastes into a support ticket and has to read character
-                        by character. */}
-                    <td className={`money ${cell} text-ink-muted`}>
-                      {payment.providerPaymentId}
-                    </td>
                     <td className="h-11 px-3">
                       <StatusBadge status={badge.key} label={badge.label} />
                     </td>
@@ -124,9 +134,15 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
                       </span>
                       {formatMinorDigits(payment.amountMinor)}
                     </td>
-                    <td className={`money ${cell} pr-5 text-right text-ink-secondary`}>
+                    <td className={`money ${cell} text-right text-ink-secondary`}>
                       <span className="currency-mark">{symbol}</span>
                       {formatMinorDigits(payment.balanceAfterMinor)}
+                    </td>
+                    {/* Mono, because a provider reference is a string someone
+                        pastes into a support ticket and has to read character
+                        by character — so it is never truncated, only scrolled. */}
+                    <td className={`money ${cell} pr-5 text-ink-muted`}>
+                      {payment.providerPaymentId}
                     </td>
                   </tr>
                 );
