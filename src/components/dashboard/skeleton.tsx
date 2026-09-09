@@ -1,21 +1,13 @@
+import { SkeletonBlock as Block } from '@/components/ui/skeleton';
+
 /**
  * §7: skeletons for page and table loading, spinners for in-place actions.
  * Blocks match the real content's box so nothing shifts when data arrives.
  *
- * The shimmer is a translating gradient; `motion-reduce:animate-none` drops it
- * to a static block, per the spec's note that reduced motion removes the
- * shimmer outright rather than slowing it.
+ * The shimmering block itself now lives in `@/components/ui/skeleton` — the
+ * invoices list needed the same treatment, and one shimmer is easier to keep
+ * honest than two.
  */
-function Block({ className = '' }: { className?: string }) {
-  return (
-    <div
-      className={`relative overflow-hidden rounded-xs bg-surface-raised ${className}`}
-    >
-      <div className="absolute inset-0 -translate-x-full animate-[settled-shimmer_1.4s_linear_infinite] bg-gradient-to-r from-transparent via-surface-overlay to-transparent motion-reduce:animate-none" />
-    </div>
-  );
-}
-
 export function DashboardSkeleton() {
   return (
     <div aria-hidden="true" className="flex flex-col gap-6">

@@ -47,12 +47,45 @@ export function formatCompactMajor(major: number, currency: string): string {
   return `${symbol}${major}`;
 }
 
-export function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-GB', {
+/**
+ * Dates are day-month-year, and the month is always three letters.
+ *
+ * en-GB gives the right order but abbreviates September as "Sept" — four
+ * characters where every other month is three. The revenue chart hit this
+ * first, where it left one odd label on the axis; in a date column it is worse,
+ * because the year no longer lines up down the page. en-US abbreviates three
+ * across the board, so the month part comes from there and the order stays
+ * British.
+ */
+const MONTH_SHORT = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  timeZone: BUSINESS_TIMEZONE,
+});
+
+function britishDate(date: Date, withYear: boolean): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
+    ...(withYear ? { year: 'numeric' as const } : {}),
     timeZone: BUSINESS_TIMEZONE,
-  });
+  }).formatToParts(date);
+
+  const month = MONTH_SHORT.format(date);
+  return parts.map((part) => (part.type === 'month' ? month : part.value)).join('');
+}
+
+/** "12 Mar". Rolling windows where the year is implied by the surrounding view. */
+export function formatDate(date: Date): string {
+  return britishDate(date, false);
+}
+
+/**
+ * "12 Mar 2026". For lists that are filtered by date or that span more than a
+ * year — the dashboard's rolling six months can drop the year, an archive
+ * cannot.
+ */
+export function formatDateFull(date: Date): string {
+  return britishDate(date, true);
 }
 
 export function formatDateTime(date: Date): string {

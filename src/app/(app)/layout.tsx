@@ -20,7 +20,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-full flex-1 flex-col min-[900px]:flex-row">
-      <Sidebar dashboardHref={anonymous ? '/demo' : '/dashboard'} />
+      <Sidebar
+        dashboardHref={anonymous ? '/demo' : '/dashboard'}
+        anonymous={anonymous}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[52px] shrink-0 items-center justify-end gap-4 border-b border-line-subtle px-6">

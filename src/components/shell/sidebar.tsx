@@ -62,24 +62,46 @@ type NavItem = {
   Icon: typeof LayoutDashboard;
   /** Inert until the route exists. Rendered, not hidden, so the shape is honest. */
   enabled: boolean;
+  /**
+   * Renders a record — client names, invoice numbers, sums — and so requires a
+   * session. See the rule in `@/lib/auth/guard`. Shown to anonymous visitors as
+   * an inert item rather than a link, because a link that only ever bounces to
+   * /login is a dead end dressed as a destination.
+   */
+  privileged?: boolean;
 };
 
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard, enabled: true },
-  { href: '/invoices', label: 'Invoices', Icon: FileText, enabled: false },
-  { href: '/payments', label: 'Payments', Icon: Wallet, enabled: false },
-  { href: '/clients', label: 'Clients', Icon: Users, enabled: false },
-  { href: '/settings', label: 'Settings', Icon: Settings, enabled: false },
+  { href: '/invoices', label: 'Invoices', Icon: FileText, enabled: true, privileged: true },
+  { href: '/payments', label: 'Payments', Icon: Wallet, enabled: false, privileged: true },
+  { href: '/clients', label: 'Clients', Icon: Users, enabled: false, privileged: true },
+  { href: '/settings', label: 'Settings', Icon: Settings, enabled: false, privileged: true },
 ];
 
-export function Sidebar({ dashboardHref }: { dashboardHref: string }) {
+export function Sidebar({
+  dashboardHref,
+  anonymous = false,
+}: {
+  dashboardHref: string;
+  anonymous?: boolean;
+}) {
   const pathname = usePathname();
   const collapsed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const toggle = () => persist(!collapsed);
 
-  const items = NAV.map((item) =>
-    item.href === '/dashboard' ? { ...item, href: dashboardHref } : item,
-  );
+  const items = NAV.map((item) => {
+    const href = item.href === '/dashboard' ? dashboardHref : item.href;
+    const locked = anonymous && item.privileged === true;
+    return {
+      ...item,
+      href,
+      enabled: item.enabled && !locked,
+      // Not-built wins over locked. Payments is both for an anonymous visitor,
+      // and telling them to sign in would be a promise the route cannot keep.
+      reason: !item.enabled ? 'not built yet' : 'Sign in to view',
+    };
+  });
 
   return (
     <>
@@ -102,7 +124,7 @@ export function Sidebar({ dashboardHref }: { dashboardHref: string }) {
         </div>
 
         <ul className="flex flex-1 flex-col gap-0.5 p-2">
-          {items.map(({ href, label, Icon, enabled }) => {
+          {items.map(({ href, label, Icon, enabled, reason }) => {
             const active = pathname === href;
             const shared =
               'flex h-9 items-center gap-3 rounded-sm px-2.5 text-small transition-colors duration-[var(--duration-fast)] ease-standard';
@@ -113,7 +135,7 @@ export function Sidebar({ dashboardHref }: { dashboardHref: string }) {
                 <li key={href}>
                   <span
                     aria-disabled="true"
-                    title={`${label} — not built yet`}
+                    title={`${label} — ${reason}`}
                     className={`${shared} cursor-not-allowed text-ink-muted opacity-60`}
                   >
                     <Icon aria-hidden="true" size={16} className="shrink-0" />

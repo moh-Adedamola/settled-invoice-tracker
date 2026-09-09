@@ -1,6 +1,7 @@
 import type { UnmatchedPayment } from '@/lib/queries/dashboard';
 import { currencySymbol, formatDateTime, formatMinorDigits } from '@/lib/format';
 import { EmptyState } from './empty-state';
+import { ScrollCue } from '@/components/ui/scroll-cue';
 
 /**
  * Money received that no invoice claims.
@@ -41,7 +42,7 @@ export function UnmatchedQueue({
           body="Payments that arrive without an invoice reference will queue here for manual matching."
         />
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollCue>
           <table className="w-full min-w-[680px] border-collapse">
             <thead>
               <tr>
@@ -119,7 +120,7 @@ export function UnmatchedQueue({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollCue>
       )}
     </section>
   );

@@ -60,6 +60,17 @@ Legibility beats atmosphere every time.
 The test for any app-surface flourish: *would this still be welcome on the four
 hundredth viewing?* If not, it belongs on the landing page.
 
+**A note on who sees these surfaces**, because it is easy to read "public" off the
+ambition column and it is not there. Ambition and audience are independent axes. `/demo`
+is a restrained app surface that happens to be public; `/invoices` is the same surface and
+is not. **Every route that renders a record — invoices, payments, clients — requires a
+session**, because a client who engaged the agency did not agree to appear on a public web
+page, and a database that today holds only seeded rows is a property of the seed rather
+than a licence. `/demo` is public on the strength of the nightly reset, which is a
+guarantee about the data and not a statement about dashboards being less sensitive than
+ledgers. The rule is written out in full at the top of `src/lib/auth/guard.ts`, next to
+`requireUser`, so it is settled once rather than re-argued per page.
+
 ---
 
 ## 3. Colour
@@ -533,6 +544,9 @@ covers, and the border alone does not do it. Scrim: `rgb(0 0 0 / 0.62)` dark,
 
 ### Focus ring — applies to everything
 
+**The rule, in one line:** `:focus-visible` for simple controls, `:focus-within` for
+composite inputs with internal segments.
+
 ```
 --ring-focus: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent);
 ```
@@ -562,6 +576,43 @@ beats the global rule on specificity:
 
 Apply it to any control filled with `--accent`: the primary button, an active filled tab,
 a selected chip. Everything else inherits the global ring and needs no class.
+
+**Composite inputs take `:focus-within` instead.** A native `input[type="date"]` is not
+one control; it is three fields in a shadow tree — day, month, year — and Tab walks
+between them. Measured in Chrome 141 on the invoice filter bar, tabbing across the
+segments of a single field:
+
+| Segment | Host matches `:focus-visible` | Ring |
+| --- | --- | --- |
+| day | yes | painted |
+| month | yes | painted |
+| **year** | **no** | **none** |
+
+The ring disappears on the last segment with the caret still inside the field. That is a
+keyboard user losing their position mid-input, and it is not something the element's own
+markup can fix — the mismatch is between where focus really is and which pseudo-class the
+host element matches. `:focus-within` is true for as long as focus is anywhere in the
+subtree, which is the honest description of what the ring is claiming.
+
+```css
+input[type='date']:focus-within,
+input[type='datetime-local']:focus-within,
+input[type='month']:focus-within,
+input[type='time']:focus-within,
+input[type='week']:focus-within {
+  outline: none;
+  box-shadow: var(--ring-focus);
+  border-radius: var(--radius-sm);
+}
+```
+
+Scoped to the segmented types, never applied to `input` at large. On a simple text input
+`:focus-within` and `:focus` select the same element, and that set includes pointer
+clicks — precisely the ring the `:focus-visible` rule exists to withhold. Widen this list
+only for a control that genuinely holds focusable children; a custom combobox or a
+segmented code entry qualifies, a styled text field does not.
+
+Both rules live in `@layer base`, for the reason above.
 
 **Measured on the login form** (Tab order: email, password, Sign in, demo link):
 
@@ -825,6 +876,24 @@ Distinguish two cases:
   filters link. No display type, no artwork, no plate. The user is mid-task and does not
   want a moment.
 
+**Every empty state carries an `action` slot, and the filtered variant must fill it.**
+An empty state that only describes the emptiness leaves the user to work out the way back
+themselves — and on a filtered ledger the way back is a specific URL they can no longer
+see, because the thing hiding their data is the thing they would have to read the query
+string to find. The slot renders inline with the two lines in the filtered variant and
+below the sentence in the first-run one.
+
+Fill it with:
+
+| Case | Action |
+| --- | --- |
+| Filtered empty | **Clear filters** — an inline `accent` link to the unfiltered route. Required. |
+| First-run empty | The one primary action that ends the state (`New invoice`), or nothing if the surface is read-only. |
+
+Say what is on the other side of the filter while you are at it: *"No invoices match these
+filters. 47 on the books in total."* The count is what tells the user their ledger is
+intact and the filter is at fault, which is the actual question behind the empty screen.
+
 ### Skeleton
 
 `bg-raised` blocks at `radius-xs`, matching the real content's box exactly. Shimmer is a
@@ -864,9 +933,52 @@ Justification: a ledger is read by comparison — is this amount larger than tha
 these three all overdue. Card-stacking destroys column alignment, which destroys the
 tabular figures that are the entire typographic premise, and turns a 50-row scan into 50
 screens of scrolling. Horizontal scroll preserves the table; the invoice number column
-stays pinned so a row is always identifiable. The scroll container is
-`overflow-x: auto` with `-webkit-overflow-scrolling: touch` and a right-edge fade to
-signal more content. Card-stacking is correct for feeds; this is not a feed.
+stays pinned so a row is always identifiable. Card-stacking is correct for feeds; this is
+not a feed.
+
+**The scroll cue.** A clipped column at the container edge is ambiguous: a clean vertical
+cut reads as the end of the table just as easily as the edge of the window, and at 560px
+the invoice ledger cuts through the middle of a date. The cue is a **28px fade to the
+surface ground at the right edge, shown only while there is more table to the right of
+it**. Content that continues fades; content that ends does not.
+
+**Right edge only.** A pinned first column is itself the signal that the left is anchored
+rather than lost, and a fade laid over it would erase the invoice number — the one value
+that identifies the row.
+
+Use the **`ScrollCue`** component, which owns the scroll container and the overlay:
+
+```tsx
+<ScrollCue className="rounded-md border border-line bg-surface">
+  <table className="min-w-[900px]">…</table>
+</ScrollCue>
+```
+
+It measures `scrollWidth`, `clientWidth` and `scrollLeft` and toggles `data-visible` on a
+`scroll-cue-edge` span, with a `ResizeObserver` on both the container and its child so a
+viewport resize, a font swap or a filter that changes the column widths all re-measure.
+Scroll position is read through `useSyncExternalStore`, not mirrored into state from an
+effect. The server snapshot is "no cue", so the first paint carries none and the client
+corrects after hydration — a cue rendered before anything has been measured would be a
+guess.
+
+**The pure-CSS version does not work, and it is worth recording why**, because it is the
+answer everyone reaches for. Two `background-attachment: local` covers over two `scroll`
+shadows: the covers travel with the content and mask the shadow at whichever end is fully
+scrolled, no listener, always exactly as true as the scroll position. Painting the four
+layers in flat colours and reading the pixels back at 560px in Chrome 141:
+
+| Layer | Anchored | Rendered |
+| --- | --- | --- |
+| left cover (`local`) | `left center` | correct, 28px at the visible left edge |
+| left shadow (`scroll`) | `left center` | correct, 20px, exposed once scrolled |
+| right cover (`local`) | `right center` | correct, arrives at the right edge when scrolled |
+| **right shadow (`scroll`)** | `right center` | **1px** — placed 19px past the visible right edge |
+
+A `scroll`-attachment layer on a horizontally scrolling element takes a positioning area
+wider than the box it is painted into, so `right center` lands off-screen. The cue
+survived only on the edge that already has a pinned column. Measure before shipping a
+mechanism that looks obviously correct.
 
 The public demo dashboard is the exception: its summary cards stack normally, since they
 are cards already rather than a table.

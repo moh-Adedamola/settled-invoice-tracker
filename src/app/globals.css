@@ -448,6 +448,29 @@
     box-shadow: var(--ring-focus);
     border-radius: var(--radius-sm);
   }
+
+  /* Composite inputs: :focus-within, not :focus-visible.
+
+     `input[type="date"]` is three fields in a shadow tree - day, month, year -
+     and Tab walks between them. Measured in Chrome 141, the host matches
+     :focus-visible while the day and month segments hold focus and STOPS
+     matching on the year segment, so the ring vanishes with the caret still
+     inside the field. :focus-within is true for as long as focus is anywhere in
+     the subtree, which is the honest description of what the ring is claiming.
+
+     Scoped to the segmented types rather than applied to `input` at large: on a
+     simple text input :focus-within and :focus are the same set, and that set
+     includes pointer clicks, which is precisely the ring the rule above exists
+     to withhold. */
+  input[type='date']:focus-within,
+  input[type='datetime-local']:focus-within,
+  input[type='month']:focus-within,
+  input[type='time']:focus-within,
+  input[type='week']:focus-within {
+    outline: none;
+    box-shadow: var(--ring-focus);
+    border-radius: var(--radius-sm);
+  }
 }
 
 /* ==========================================================================
@@ -513,6 +536,43 @@
 
 @utility enter {
   animation: settled-enter var(--duration-slow) var(--ease-out-quint) both;
+}
+
+/* --------------------------------------------------------------------------
+   Horizontal-scroll cue (§8).
+
+   A ledger too wide for the viewport clips mid-column, and a clean vertical cut
+   at the container edge reads as the end of the table just as easily as the
+   edge of the window. This fades the last 28px into the surface instead:
+   content that continues fades, content that ends does not.
+
+   Painted by <ScrollCue>, which measures the element and toggles data-visible.
+   The pure-CSS local/scroll-attachment version was tried first and does not
+   work - see the comment in that component for the measurement that killed it.
+
+   The gradient runs to the element's own ground, so a container using this must
+   set that ground too; override --scroll-cue-ground when it is not bg-base.
+   Right edge only: a pinned first column is itself the left-hand signal, and a
+   fade over it would erase the value that identifies the row.
+   -------------------------------------------------------------------------- */
+
+@utility scroll-cue-edge {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: 28px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    to left,
+    var(--scroll-cue-ground, var(--bg-base)) 20%,
+    transparent
+  );
+  transition: opacity var(--duration-fast) var(--ease-standard);
+
+  &[data-visible='true'] {
+    opacity: 1;
+  }
 }
 
 /* Focus ring for controls filled with the accent, where copper-on-copper would

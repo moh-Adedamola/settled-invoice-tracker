@@ -4,6 +4,12 @@ import { sql } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { BUSINESS_TIMEZONE } from '@/lib/business-timezone';
+import {
+  daysOverdueExpr,
+  isOverdueExpr,
+  outstandingMinorExpr,
+  settledPaymentsCte,
+} from './invoice-status';
 import type {
   InvoiceStatus,
   PaymentProvider,
@@ -42,22 +48,13 @@ import type {
    no FX because NGN is the reporting base, so the coalesce is what makes a
    mixed-currency sum meaningful.
 
-   SETTLEMENT (the single predicate, used everywhere)
-   `status` is consulted ONLY to exclude 'draft' (never issued) and 'void'
-   (cancelled) — the two states no payment can tell you about. Everything else
-   is derived:
-
-     settled_minor     = sum(payments.amount_minor) where status = 'succeeded'
-     outstanding_minor = greatest(amount_minor - settled_minor, 0)
-     outstanding       = outstanding_minor > 0
-     overdue           = outstanding AND due_at < now()
-
-   This deliberately does not trust `invoices.status`. A 'sent' invoice whose
-   due date passed last week is overdue whether or not a cron has rewritten the
-   column, and an invoice marked 'paid' with no payment behind it is not
-   revenue. Because the KPI, the overdue table and the activity feed all derive
-   from this one predicate, they cannot contradict each other — which matters
-   more than any single figure being right.
+   SETTLEMENT
+   Defined once in `./invoice-status.ts` and imported here — see that file for
+   the rule and the reasoning. It moved out of this file when the same CTE and
+   the same `greatest(amount - settled, 0)` had been written three times in it,
+   and the invoice list needed a fourth. The dashboard and the list now cannot
+   disagree about what "overdue" means, because there is only one definition to
+   disagree with.
 
    REFUNDS
    Excluded from revenue, not subtracted. Every revenue expression filters to
@@ -213,21 +210,16 @@ export type DashboardKpis = {
  */
 export async function getKpis(): Promise<DashboardKpis> {
   const result = await db.execute(sql`
-    with settled as (
-      select invoice_id, sum(amount_minor) as settled_minor
-      from payments
-      where status = 'succeeded' and invoice_id is not null
-      group by invoice_id
-    ),
+    with ${settledPaymentsCte},
     open_invoices as (
       select
         i.currency,
-        greatest(i.amount_minor - coalesce(s.settled_minor, 0), 0) as outstanding_minor,
-        (i.due_at is not null and i.due_at < now())                as is_overdue
+        ${outstandingMinorExpr} as outstanding_minor,
+        ${isOverdueExpr}        as is_overdue
       from invoices i
       left join settled s on s.invoice_id = i.id
       where i.status not in ('draft', 'void')
-        and greatest(i.amount_minor - coalesce(s.settled_minor, 0), 0) > 0
+        and ${outstandingMinorExpr} > 0
     ),
     latest_fx as (
       select distinct on (base) base, rate
@@ -428,12 +420,7 @@ export async function getOverdueInvoices(limit = 10): Promise<OverdueInvoice[]> 
   const cap = Math.min(Math.max(Math.floor(limit) || 10, 1), 200);
 
   const result = await db.execute(sql`
-    with settled as (
-      select invoice_id, sum(amount_minor) as settled_minor
-      from payments
-      where status = 'succeeded' and invoice_id is not null
-      group by invoice_id
-    ),
+    with ${settledPaymentsCte},
     last_reminder as (
       select invoice_id, max(sequence) as sequence
       from reminders
@@ -444,18 +431,14 @@ export async function getOverdueInvoices(limit = 10): Promise<OverdueInvoice[]> 
       i.amount_minor::text as amount_minor,
       i.due_at,
       c.id as client_id, c.name as client_name,
-      greatest(i.amount_minor - coalesce(s.settled_minor, 0), 0)::bigint::text as outstanding_minor,
-      ( (now() AT TIME ZONE ${BUSINESS_TIMEZONE})::date
-        - (i.due_at AT TIME ZONE ${BUSINESS_TIMEZONE})::date )::int as days_overdue,
+      ${outstandingMinorExpr}::bigint::text as outstanding_minor,
+      ${daysOverdueExpr(BUSINESS_TIMEZONE)} as days_overdue,
       coalesce(lr.sequence, 0)::int as last_reminder_sequence
     from invoices i
     join clients c on c.id = i.client_id
     left join settled s on s.invoice_id = i.id
     left join last_reminder lr on lr.invoice_id = i.id
-    where i.status not in ('draft', 'void')
-      and i.due_at is not null
-      and i.due_at < now()
-      and greatest(i.amount_minor - coalesce(s.settled_minor, 0), 0) > 0
+    where ${isOverdueExpr}
     order by days_overdue desc, outstanding_minor desc
     limit ${cap}
   `);

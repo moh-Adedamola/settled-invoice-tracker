@@ -1,5 +1,6 @@
 import type { OverdueInvoice } from '@/lib/queries/dashboard';
 import { currencySymbol, formatDate, formatMinorDigits } from '@/lib/format';
+import { ScrollCue } from '@/components/ui/scroll-cue';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { EmptyState } from './empty-state';
 
@@ -32,7 +33,7 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
     >
       <Header count={invoices.length} />
 
-      <div className="overflow-x-auto">
+      <ScrollCue>
         <table className="w-full min-w-[720px] border-collapse">
           <thead>
             <tr>
@@ -110,7 +111,7 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollCue>
     </section>
   );
 }

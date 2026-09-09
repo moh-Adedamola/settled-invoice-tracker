@@ -96,6 +96,34 @@ export async function commitSessionRefresh(): Promise<void> {
   await issueSessionCookie(token);
 }
 
+/**
+ * ## Which routes may be public
+ *
+ * Settle this once, here, rather than per page.
+ *
+ * **A route that renders a record requires a session.** Invoices, payments,
+ * clients, and anything built from them name real people and real sums. A
+ * client engaged an agency; they did not agree to appear on a public web page,
+ * and the fact that today's database happens to hold only generated rows is a
+ * property of the seed, not a licence. `requireUser()` goes at the top of every
+ * such page.
+ *
+ * **`/demo` is the sole exception, and it is not one.** It is a curated sales
+ * surface whose contract with the visitor is stated on the page: the data is
+ * generated and resets nightly. It stays public because the reset job
+ * guarantees what it shows, not because dashboards are less sensitive than
+ * ledgers. If a public tour of another surface is ever wanted, it belongs
+ * beside `/demo` on that same guarantee — never by dropping the guard on the
+ * real route.
+ *
+ * Read-only and unauthenticated are different questions. `isReadOnly()` decides
+ * which *affordances* render for someone already admitted; it never decides who
+ * is admitted. A viewer-role session is read-only and still authenticated.
+ *
+ * Applies to `/invoices` today and to `/payments`, `/clients` and `/settings`
+ * when they are built.
+ */
+
 /** Any authenticated user. Redirects to /login when there is no session. */
 export async function requireUser(): Promise<ValidatedSession> {
   const current = await getCurrentSession();
