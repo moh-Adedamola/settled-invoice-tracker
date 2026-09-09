@@ -12,6 +12,92 @@
  * page needed it too — it is money arithmetic, not processing.
  */
 
+/* ==========================================================================
+   Parsing what a person typed.
+   ==========================================================================
+
+   Both the form and the server action parse through these. That is not tidiness
+   either: the client shows a running total while the user types, the server
+   recomputes it, and the deferred trigger rejects the write if the two disagree
+   by a single kobo. Sharing the parser and `multiplyByQuantity` is what makes
+   agreement structural rather than a coincidence that holds until someone
+   changes a rounding rule on one side.
+
+   Nothing here goes through `Number`. `parseFloat('0.07') * 100` is 7.000000001
+   and `Math.round` hides it right up until the invoice that it does not.
+   ========================================================================== */
+
+/** ISO 4217 minor-unit exponents for the currencies this ledger handles. */
+const MINOR_UNIT_DIGITS: Record<string, number> = { NGN: 2, USD: 2, GBP: 2 };
+
+/** Two is the right default: it is what every currency here uses, and a wrong
+ *  guess is caught by `too-precise` rather than silently truncating. */
+export const minorUnitDigits = (currency: string): number =>
+  MINOR_UNIT_DIGITS[currency] ?? 2;
+
+/** A ledger that needs more than this has outgrown a single-tenant tracker. */
+const MAX_MINOR = 10n ** 15n;
+
+export type MoneyParseFailure =
+  | 'empty'
+  | 'malformed'
+  | 'negative'
+  | 'too-precise'
+  | 'too-large';
+
+export type ParsedMoney =
+  | { ok: true; minor: bigint }
+  | { ok: false; reason: MoneyParseFailure };
+
+/**
+ * Parses a decimal string to minor units, exactly.
+ *
+ * Grouping separators are accepted because people paste them; everything else
+ * that is not a plain decimal is rejected rather than coerced. More decimal
+ * places than the currency has is an error, not something to round away — a
+ * user who typed 1.005 meant something, and picking one of the two neighbouring
+ * kobo for them is how a total ends up one off the sum of its lines.
+ */
+export function parseDecimalToMinor(input: string, currency: string): ParsedMoney {
+  const trimmed = input.trim().replace(/,/g, '');
+  if (trimmed === '') return { ok: false, reason: 'empty' };
+  if (trimmed.startsWith('-')) return { ok: false, reason: 'negative' };
+  if (!/^\d+(\.\d*)?$/.test(trimmed)) return { ok: false, reason: 'malformed' };
+
+  const digits = minorUnitDigits(currency);
+  const [whole = '', fraction = ''] = trimmed.split('.');
+  if (fraction.length > digits) return { ok: false, reason: 'too-precise' };
+
+  const minor = BigInt(`${whole}${fraction.padEnd(digits, '0')}`);
+  if (minor > MAX_MINOR) return { ok: false, reason: 'too-large' };
+  return { ok: true, minor };
+}
+
+export type ParsedQuantity =
+  | { ok: true; value: string }
+  | { ok: false; reason: 'empty' | 'malformed' | 'zero' | 'too-large' };
+
+/**
+ * Validates a quantity and returns it in the canonical `numeric(12,3)` form.
+ *
+ * String work throughout, for the same reason as above: `numeric(12,3)` reaches
+ * further than a float carries exactly, and a quantity is a term of the
+ * document rather than a measurement.
+ */
+export function parseQuantity(input: string): ParsedQuantity {
+  const trimmed = input.trim().replace(/,/g, '');
+  if (trimmed === '') return { ok: false, reason: 'empty' };
+  if (!/^\d+(\.\d{0,3})?$/.test(trimmed)) return { ok: false, reason: 'malformed' };
+
+  const [whole = '', fraction = ''] = trimmed.split('.');
+  // numeric(12,3): 12 significant digits, 3 after the point, so 9 before it.
+  if (whole.replace(/^0+/, '').length > 9) return { ok: false, reason: 'too-large' };
+
+  const padded = fraction.padEnd(QUANTITY_SCALE, '0');
+  if (BigInt(`${whole}${padded}`) === 0n) return { ok: false, reason: 'zero' };
+  return { ok: true, value: `${whole}.${padded}` };
+}
+
 /** invoice_line_items.quantity is numeric(12,3). */
 const QUANTITY_SCALE = 3;
 const QUANTITY_DIVISOR = 10n ** BigInt(QUANTITY_SCALE);

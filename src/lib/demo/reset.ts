@@ -176,13 +176,23 @@ export function buildDemoDataset(): DemoDataset {
   const NOW = new Date();
 
   /**
-   * The year printed in every invoice number. A constant, not `YEAR`.
+   * Demo invoice numbers: `DEMO-2026-0001`.
    *
-   * Numbers are identity — they are what a person quotes on the phone — so they
-   * must not change when the wall clock rolls into a new year. The cost is that
-   * from 2027 the prefix reads as a label rather than as the issue year; the
-   * issue date is on the invoice and is correct.
+   * The prefix is `DEMO-`, not `INV-`, and that is a correctness property
+   * rather than a label. Real invoices number from `INV-<year>-0001` upward,
+   * and both sequences start at 1 — so a shared prefix means the two spaces
+   * collide the moment the demo set grows past the lowest real invoice number.
+   * `invoices.number` is unique, so the collision surfaces as a nightly reset
+   * that fails on a 23505 rather than as bad data, but a demo that stops
+   * regenerating is still an outage. Separate prefixes make it impossible
+   * however far either sequence grows.
+   *
+   * The year is a constant, not the current one. Numbers are identity — what a
+   * person quotes on the phone — so they must not change when the wall clock
+   * rolls over. From 2027 the prefix reads as a label rather than as the issue
+   * year; the issue date is on the invoice and is correct.
    */
+  const DEMO_PREFIX = 'DEMO';
   const LEDGER_YEAR = 2026;
 
   const addDays = (d: Date, n: number) => new Date(d.getTime() + n * DAY);
@@ -781,7 +791,7 @@ export function buildDemoDataset(): DemoDataset {
    */
   builtInvoices.sort((a, b) => a.sortKey - b.sortKey || a.seq - b.seq);
   builtInvoices.forEach((invoice, index) => {
-    invoice.number = `INV-${LEDGER_YEAR}-${String(index + 1).padStart(4, '0')}`;
+    invoice.number = `${DEMO_PREFIX}-${LEDGER_YEAR}-${String(index + 1).padStart(4, '0')}`;
     invoice.id = uuidFor(`invoice:${invoice.number}`);
   });
 

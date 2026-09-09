@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
-import { requireUser } from '@/lib/auth/guard';
+import { isReadOnly, requireUser } from '@/lib/auth/guard';
 import { getInvoice } from '@/lib/queries/invoices';
 import { currencySymbol, formatDateFull, formatMinorDigits } from '@/lib/format';
 import { firstValue, type RawSearchParams } from '@/lib/search-params';
+import { InvoiceWriteActions } from '@/components/invoices/invoice-actions';
 import { InvoiceLines } from '@/components/invoices/invoice-lines';
 import { InvoicePayments } from '@/components/invoices/invoice-payments';
 import { InvoiceReminders } from '@/components/invoices/invoice-reminders';
@@ -108,6 +109,8 @@ export default async function InvoiceDetailPage({
   const invoice = await getInvoice(id);
   if (!invoice) notFound();
 
+  // Presentation only. Every action re-checks with assertCanWrite on the server.
+  const readOnly = await isReadOnly();
   const badge = invoiceStatusKey(invoice.status);
   const symbol = currencySymbol(invoice.currency);
 
@@ -130,6 +133,20 @@ export default async function InvoiceDetailPage({
               <span className="money text-small whitespace-nowrap text-overdue">
                 {invoice.daysOverdue} {invoice.daysOverdue === 1 ? 'day' : 'days'} overdue
               </span>
+            ) : null}
+            {/*
+              Hidden entirely for a viewer, not disabled. A greyed-out control
+              advertises a capability the reader does not have and invites them
+              to ask why it does not work; absence says nothing. Editing is a
+              link because it only navigates — the mutations are POSTs.
+            */}
+            {!readOnly && invoice.storedStatus === 'draft' ? (
+              <Link
+                href={`/invoices/${invoice.id}/edit`}
+                className="inline-flex h-9 items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
+              >
+                Edit
+              </Link>
             ) : null}
           </div>
         }
@@ -174,6 +191,15 @@ export default async function InvoiceDetailPage({
             </span>
           </Fact>
         </dl>
+
+        {readOnly ? null : (
+          <InvoiceWriteActions
+            invoiceId={invoice.id}
+            status={invoice.storedStatus}
+            hasLineItems={invoice.lineItems.length > 0}
+            paymentCount={invoice.payments.length}
+          />
+        )}
 
         {/*
           The summary is FIRST in the DOM and moved right by `order` at lg.

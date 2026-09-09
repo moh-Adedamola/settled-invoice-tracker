@@ -100,6 +100,16 @@ export default async function InvoicesPage({
         title="Invoices"
         eyebrow={readOnly ? 'Read only' : undefined}
         description="Every invoice on the books, with what has actually been paid against it."
+        actions={
+          readOnly ? null : (
+            <Link
+              href="/invoices/new"
+              className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
+            >
+              New invoice
+            </Link>
+          )
+        }
       />
 
       <div className="flex flex-col gap-6 px-6 py-6">

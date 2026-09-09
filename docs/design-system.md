@@ -925,6 +925,62 @@ pixels. Awaiting the read in the page body before the first flush returned all t
 404. A page whose own title comes from the record has no meaningful shell to stream ahead
 of it anyway.
 
+### Destructive and irreversible actions
+
+**Confirm in place, not in a modal.** §7 gives modals to things that need focus trapping
+and an escape path; a two-button row needs neither. The control replaces itself with a
+sentence saying what will happen and a confirm/cancel pair, in the space it already
+occupied — so nothing jumps and the question is asked where the answer will be given.
+
+Two transitions earn it on an invoice: **void**, which is not reversible from the UI at
+all, and **mark as sent**, which is what makes an invoice uneditable. Neither should be one
+stray tap away on a phone.
+
+**Say what happens, not "are you sure".** *"Once sent, this invoice can no longer be
+edited — the client has a copy of it"* is the sentence; the button then says
+*"Yes, mark as sent"* rather than *"OK"*, so the confirm reads as the action even out of
+context.
+
+**Write controls are hidden from a read-only viewer, never disabled.** A greyed-out Void
+button advertises a capability the reader does not have and invites them to ask why it
+does not work. Absence says nothing, which is correct — they have nothing to act on. This
+is presentation only; every action calls `assertCanWrite()` on the server first, before
+validation and before any read.
+
+**Every mutation is a POST.** The session cookie is `sameSite: 'lax'`, which means a
+cross-site GET carries it — so `<a href="/invoices/123/void">` would be a working CSRF
+endpoint with a nice hover state. `lax` does not send the cookie on a cross-site POST,
+which is what makes a form safe and a link not. Edit is a link precisely because it only
+navigates.
+
+### Form fields
+
+Inputs follow §7's text-input spec. Two rules that only surface once a form can fail:
+
+**Control every field, including the ones that appear not to need it.** React 19 resets an
+*uncontrolled* field after a form action completes. Measured on the invoice form: submit
+with one bad unit price, and the line items — controlled — kept their values while the
+client, both dates and the description came back blank. The user fixes the one field the
+error names and silently loses four they never touched. `defaultValue` is the trap: it is
+the natural thing to write, and it is exactly what empties on a failed submit.
+
+**A money field is `inputMode="decimal"`, never `type="number"`.** A number input accepts
+exponent notation and lets the browser round, which is precisely the precision this ledger
+refuses to hand off. Parse the string yourself and reject what the currency cannot hold —
+`1.005` in a two-decimal currency is an error, not something to round away. A user who
+typed it meant something, and choosing one of the two neighbouring kobo for them is how a
+total ends up one off the sum of its lines.
+
+**A live total must be computed by the same code as the stored one.** The invoice editor
+shows a running total while the user types and the server recomputes it on submit; the two
+call the same `multiplyByQuantity` and `parseDecimalToMinor` from `@/lib/money`, on the
+same strings. That is not belt and braces — the deferred trigger rejects any write where
+the lines disagree with the total, so a client that rounded differently produces a form
+that fails on submit with an error about a sum the user cannot see and did not cause.
+Sharing the functions makes agreement structural; re-implementing the arithmetic, even
+correctly, makes it a coincidence that holds until someone changes a rounding rule on one
+side.
+
 ### Skeleton
 
 `bg-raised` blocks at `radius-xs`, matching the real content's box exactly. Shimmer is a
@@ -1258,9 +1314,25 @@ against them — one with a failed attempt interleaved — so the `partial` stat
 renders and the payment history's running balance shows a real descending sequence with an
 attempt that visibly does not move it.
 
-The rule that enforces it: **no composition decision may read the clock.** Ids come from
-`uuidFor(<stable key>)` rather than `randomUUID()`, so `/invoices/<id>` survives a reset;
-invoice numbers carry a constant `LEDGER_YEAR`; every invoice draws its slot in a month
+**Demo and real invoices number in separate spaces.** Demo invoices are
+`DEMO-2026-0001` upward; real ones are `INV-<year>-0001` upward, and the next-number
+generator filters on `is_demo = false` as well as the prefix. Both sequences start at 1, so
+a shared prefix would collide the moment the demo set grew past the lowest real invoice
+number — `invoices.number` is unique, so that surfaces as a nightly reset failing on a
+23505 rather than as bad data, but a demo that stops regenerating is still an outage.
+Separate prefixes make it impossible however far either grows. Verified: with 52 demo
+invoices present, the first real invoice is `INV-2026-0001`, and `DEMO-2026-0001` and
+`INV-2026-0001` coexist.
+
+Nothing downstream reads the prefix. The Paystack adapter returns whatever
+`metadata.invoice_number` holds and the processor looks it up by exact equality, so
+`DEMO-2026-0007`, `INV-2026-0001` and `ANYTHING-GOES-1` all pass through unchanged; the
+list's search is a substring match, so it reaches both spaces. The prefix is a fact about
+which sequence a number came from, not a thing to parse.
+
+The rule that enforces determinism: **no composition decision may read the clock.** Ids
+come from `uuidFor(<stable key>)` rather than `randomUUID()`, so `/invoices/<id>` survives
+a reset; invoice numbers carry a constant `LEDGER_YEAR`; every invoice draws its slot in a month
 (day 1-28, so one draw is valid in every month of every year) before any calendar is
 consulted; and the current month is no longer scaled by how much of it has elapsed —
 that scaling changed how many invoices *existed*, which is why a seed on the 8th produced
