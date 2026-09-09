@@ -35,7 +35,71 @@ export function InvoiceLines({ invoice }: { invoice: InvoiceDetail }) {
         </h2>
       </header>
 
-      <ScrollCue>
+      {/*
+        Below md this table loses UNIT and LINE TOTAL — the figures render cut
+        mid-number (`₦2,`, `₦1,0`). §8's rule applies unchanged: comparison down
+        a column needs a column, and at 390px there isn't one. Same stacked
+        treatment as the ledger list.
+      */}
+      <div className="md:hidden">
+        <ul>
+          {invoice.lineItems.map((line) => (
+            <li
+              key={line.id}
+              className="flex flex-col gap-1 border-t border-line-subtle px-4 py-3 first:border-t-0"
+            >
+              <div className="flex items-baseline gap-2.5">
+                <span className="money shrink-0 text-micro text-ink-muted">{line.position}</span>
+                <span className="text-small text-ink">{line.description}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 pl-[1.35rem]">
+                {/*
+                  The workings, kept subordinate — and omitted entirely at
+                  quantity 1, where `1 × ₦1,021,352.00` prints the line total a
+                  second time and says nothing. That is the same rule §7 states
+                  for columns, and it was not academic here: the duplicate was
+                  the longest string in the row, and at 360px it overflowed the
+                  entry by 19px and dragged the total off the shared right edge.
+
+                  `min-w-0 truncate` covers the rest: a very large unit price on
+                  a fractional quantity can still be too wide, and the workings
+                  are what gives way, never the total.
+                */}
+                {formatQuantityDisplay(line.quantity) === '1' ? (
+                  <span aria-hidden="true" />
+                ) : (
+                  <span className="money min-w-0 truncate text-micro text-ink-muted">
+                    {formatQuantityDisplay(line.quantity)} × {symbol}
+                    {formatMinorDigits(line.unitAmountMinor)}
+                  </span>
+                )}
+                {/* The figure that matters, and the aligned right edge. */}
+                <span
+                  data-stack-amount=""
+                  className="money shrink-0 text-small whitespace-nowrap text-ink"
+                >
+                  <span className="currency-mark">{symbol}</span>
+                  {formatMinorDigits(line.lineAmountMinor)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {/* The same double rule the table footer carries: it means "sum above". */}
+        <div className="rule-double flex items-baseline justify-between gap-4 px-4 py-3">
+          <span className="text-small text-ink-secondary">Invoice total</span>
+          <span
+            data-stack-amount=""
+            className="money text-small whitespace-nowrap text-ink"
+          >
+            <span className="currency-mark">{symbol}</span>
+            {formatMinorDigits(invoice.amountMinor)}
+          </span>
+        </div>
+      </div>
+
+      <ScrollCue className="hidden md:block">
         <table className="w-full min-w-[560px] border-collapse">
           <thead>
             <tr>

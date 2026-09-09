@@ -1056,6 +1056,33 @@ view gets a compact sort bar carrying the same keys and the same 2px copper unde
 the active one, so the two layouts say "sorted by this" the same way. A list that cannot
 be reordered on a phone is a different product, not a smaller one.
 
+**This applies to every table, not only the ledger list.** The invoice detail page carries
+two more, and both failed the same way below `md`: line items lost UNIT and LINE TOTAL,
+rendering figures cut mid-number (`₦2,`, `₦1,0`), and payment history kept only DATE and
+PROVIDER — so the failed-then-retried sequence the view exists to demonstrate was invisible
+on a phone. Both now stack below `md` on the same rules: one hairline-separated container,
+no per-entry shadows, and the figure that matters flush to a shared right edge in Plex Mono
+with tabular figures.
+
+What each stack leads with is the field a reader came for, and what it demotes is the field
+that is longest and least scanned:
+
+| Table | Stacked as | Demoted |
+| --- | --- | --- |
+| Line items | position · description, then `qty × unit` with the **line total** right | the workings |
+| Payment history | date · status, provider · **amount**, **balance after**, reference last | the provider reference |
+
+**A failed payment must keep both of its signals when it stacks** — the struck-through
+amount and a balance identical to the entry above it. The strike says the attempt did not
+count; the repeated balance proves it. Losing either turns the view back into a list of
+dates.
+
+**Omit a figure that repeats one already in the entry.** At quantity 1 the workings read
+`1 × ₦1,021,352.00` beside a line total of `₦1,021,352.00` — the §7 rule again, and not
+academic: that duplicate was the longest string in the entry and at 360px it overflowed by
+19px, dragging the total off the shared right edge. Where a subordinate figure can still be
+too wide, it is the one that truncates; the total never does.
+
 **The scroll cue.** A clipped column at the container edge is ambiguous: a clean vertical
 cut reads as the end of the table just as easily as the edge of the window, and at 560px
 the invoice ledger cuts through the middle of a date. The cue is a **28px fade to the

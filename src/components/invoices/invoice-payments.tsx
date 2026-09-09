@@ -71,8 +71,81 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
           payment, and no failed or pending attempt either.
         </p>
       ) : (
-        <ScrollCue>
-          <table className="w-full min-w-[720px] border-collapse">
+        <>
+          {/*
+            Below md the table kept only DATE and PROVIDER — status, amount and
+            balance all fell off, so the failed-then-retried sequence this view
+            exists to show was invisible on a phone. §8's stacked treatment,
+            same as the ledger list.
+
+            The order is the desktop order minus the scroll: status and the two
+            money figures first, reference last, because it is the long opaque
+            string nobody scans.
+          */}
+          <ul className="md:hidden">
+            {invoice.payments.map((payment) => {
+              const badge = paymentStatusKey(payment.status);
+              const counts = payment.status === 'succeeded';
+              return (
+                <li
+                  key={payment.id}
+                  className="flex flex-col gap-1.5 border-t border-line-subtle px-4 py-3 first:border-t-0"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="money text-small whitespace-nowrap text-ink-secondary">
+                      {formatDateTime(payment.occurredAt)}
+                    </span>
+                    <StatusBadge status={badge.key} label={badge.label} />
+                  </div>
+
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-small text-ink">
+                      {PROVIDER_LABEL[payment.provider] ?? payment.provider}
+                      {payment.method ? (
+                        <span className="text-ink-muted"> · {payment.method}</span>
+                      ) : null}
+                    </span>
+                    {/* Struck through when it did not count — the same signal
+                        the table gives, and the reason the balance below is
+                        allowed to repeat the entry above. */}
+                    <span
+                      data-stack-amount=""
+                      className={`money shrink-0 text-small whitespace-nowrap ${
+                        counts ? 'text-ink' : 'text-ink-muted line-through'
+                      }`}
+                    >
+                      <span className="currency-mark">
+                        {currencySymbol(payment.currency)}
+                      </span>
+                      {formatMinorDigits(payment.amountMinor)}
+                    </span>
+                  </div>
+
+                  {/* Labelled, because stacked there is no column header to
+                      say what this figure is. It shares the right edge with
+                      the amount above it, so a repeat across two entries still
+                      reads as a repeat. */}
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-micro uppercase text-ink-muted">Balance after</span>
+                    <span
+                      data-stack-amount=""
+                      className="money shrink-0 text-small whitespace-nowrap text-ink-secondary"
+                    >
+                      <span className="currency-mark">{symbol}</span>
+                      {formatMinorDigits(payment.balanceAfterMinor)}
+                    </span>
+                  </div>
+
+                  <p className="money text-micro break-all text-ink-muted">
+                    {payment.providerPaymentId}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+
+          <ScrollCue className="hidden md:block">
+            <table className="w-full min-w-[720px] border-collapse">
             <thead>
               <tr>
                 <th scope="col" className={`${headCell} pl-4 text-left`}>
@@ -148,8 +221,9 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
                 );
               })}
             </tbody>
-          </table>
-        </ScrollCue>
+            </table>
+          </ScrollCue>
+        </>
       )}
     </section>
   );
