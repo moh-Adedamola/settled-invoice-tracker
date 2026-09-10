@@ -127,7 +127,7 @@ export default async function InvoiceDetailPage({
         }
         title={<span className="money">{invoice.number}</span>}
         actions={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
             <StatusBadge status={badge.key} label={badge.label} />
             {invoice.daysOverdue > 0 ? (
               <span className="money text-small whitespace-nowrap text-overdue">
@@ -137,17 +137,18 @@ export default async function InvoiceDetailPage({
             {/*
               Hidden entirely for a viewer, not disabled. A greyed-out control
               advertises a capability the reader does not have and invites them
-              to ask why it does not work; absence says nothing. Editing is a
-              link because it only navigates — the mutations are POSTs.
+              to ask why it does not work; absence says nothing. This is
+              presentation only — every action calls assertCanWrite() on the
+              server before it validates or reads anything.
             */}
-            {!readOnly && invoice.storedStatus === 'draft' ? (
-              <Link
-                href={`/invoices/${invoice.id}/edit`}
-                className="inline-flex h-9 items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
-              >
-                Edit
-              </Link>
-            ) : null}
+            {readOnly ? null : (
+              <InvoiceWriteActions
+                invoiceId={invoice.id}
+                status={invoice.storedStatus}
+                hasLineItems={invoice.lineItems.length > 0}
+                paymentCount={invoice.payments.length}
+              />
+            )}
           </div>
         }
       />
@@ -192,14 +193,16 @@ export default async function InvoiceDetailPage({
           </Fact>
         </dl>
 
-        {readOnly ? null : (
-          <InvoiceWriteActions
-            invoiceId={invoice.id}
-            status={invoice.storedStatus}
-            hasLineItems={invoice.lineItems.length > 0}
-            paymentCount={invoice.payments.length}
-          />
-        )}
+        {/*
+          The invoice's own description. It was collected by the form and then
+          rendered nowhere except the pre-itemisation fallback, so on an
+          itemised invoice everything the user typed here vanished on save.
+          It sits under the facts rather than among them because it is a
+          sentence, not a field.
+        */}
+        {invoice.description ? (
+          <p className="max-w-[70ch] text-small text-ink-secondary">{invoice.description}</p>
+        ) : null}
 
         {/*
           The summary is FIRST in the DOM and moved right by `order` at lg.

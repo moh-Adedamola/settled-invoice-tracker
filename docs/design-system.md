@@ -959,6 +959,23 @@ Two transitions earn it on an invoice: **void**, which is not reversible from th
 all, and **mark as sent**, which is what makes an invoice uneditable. Neither should be one
 stray tap away on a phone.
 
+**In a header action cluster, the confirmation replaces the controls.** Confirm-in-place
+cannot mean "append a prompt beside three buttons" there — that reflows the header and
+pushes the page down. The whole group swaps for the question and swaps back on cancel, so
+the header keeps its height and the answer is given where the question was asked.
+
+**Close the panel when the action succeeds.** A form action revalidates and the server
+re-renders the page, but a client component's own state survives that: without an explicit
+reset the confirmation stayed on screen after the invoice had already been sent, offering
+to send it again. The re-render changes the page; something has to put the control back.
+
+**One prompt per act, not one per control.** Voiding a draft and voiding a sent invoice run
+the same action and are not the same act — one cancels something nobody has seen, the other
+cancels a document already in someone's inbox that this app cannot recall. The prompt says
+which: *"This draft has not been sent, so voiding it costs nothing"* against *"the client
+has a copy of it… voiding does not tell them, so send a note or a credit note as well."*
+A single generic sentence covering both is the same failure as "are you sure".
+
 **Say what happens, not "are you sure".** *"Once sent, this invoice can no longer be
 edited — the client has a copy of it"* is the sentence; the button then says
 *"Yes, mark as sent"* rather than *"OK"*, so the confirm reads as the action even out of
