@@ -8,6 +8,7 @@ import {
   clients,
   db,
   fxRates,
+  paymentProviderEnum,
   invoiceLineItems,
   invoices,
   payments,
@@ -1006,6 +1007,8 @@ export function buildDemoDataset(): DemoDataset {
     status: PaymentStatus;
     occurredAt: Date;
     provider?: PaymentProvider;
+    /** Overrides the provider's usual method vocabulary — see the manual block. */
+    method?: string;
   }) {
     const provider =
       args.provider ??
@@ -1024,7 +1027,7 @@ export function buildDemoDataset(): DemoDataset {
       amountMinor: args.amountMinor,
       currency: args.currency,
       status: args.status,
-      method: pick(PROVIDER_METHODS[provider]),
+      method: args.method ?? pick(PROVIDER_METHODS[provider]),
       occurredAt: args.occurredAt,
       isDemo: true,
       ...fx,
@@ -1116,6 +1119,22 @@ export function buildDemoDataset(): DemoDataset {
     }
     parts.push(left);
 
+    /*
+     * The second part-paid invoice is settled by hand rather than by a gateway.
+     *
+     * `provider = 'manual'` is what `recordManualPayment` writes, and until this
+     * existed no row in the demo carried it: the provider filter never offered
+     * Manual, and the row treatment for a hand-recorded payment had nothing
+     * rendering it. Making instalments on an EXISTING invoice manual rather
+     * than adding a new payment keeps every total, status and line-item split
+     * exactly where it was — only the provider and method change.
+     *
+     * The method reads the way the manual form composes it (kind, then note),
+     * because that is what a hand-recorded payment actually looks like in this
+     * ledger; a bare 'bank_transfer' here would be a gateway's vocabulary.
+     */
+    const byHand = index === 1;
+
     let day = 2;
     parts.forEach((amountMinor, n) => {
       // One failed attempt, between the first and second instalment.
@@ -1137,6 +1156,12 @@ export function buildDemoDataset(): DemoDataset {
         amountMinor,
         status: 'succeeded',
         occurredAt: clamp(addDays(issuedAt, day), issuedAt),
+        ...(byHand
+          ? {
+              provider: 'manual' as const,
+              method: n === 0 ? 'Bank transfer — first instalment' : 'Bank transfer',
+            }
+          : {}),
       });
       day += 3;
     });
@@ -1183,6 +1208,32 @@ export function buildDemoDataset(): DemoDataset {
     status: 'succeeded',
     occurredAt: addHours(NOW, -randInt(12, 400)),
     provider: 'stripe',
+  });
+
+  /*
+   * A fourth: cash over the counter, written down by whoever took it, with no
+   * idea which invoice it was for.
+   *
+   * This is the case the manual-entry form and the matching queue exist for at
+   * the same time — a payment that is both hand-recorded AND unmatched — and it
+   * is the pairing neither of the other two manual rows covers.
+   *
+   * Its reference keeps the seed's clock-independent `MAN-########` shape
+   * rather than the `MAN-YYYYMMDD-XXXXXX` the live form generates. Payment ids
+   * derive from the reference, and a reference carrying the payment's own date
+   * would slide with the calendar on every reset — which is the one thing the
+   * demo dataset promises not to do.
+   */
+  const cashClient = pick(clientsByCurrency.NGN);
+  addPayment({
+    invoice: null,
+    client: cashClient,
+    currency: 'NGN',
+    amountMinor: amountFor('NGN'),
+    status: 'succeeded',
+    occurredAt: addHours(NOW, -randInt(12, 120)),
+    provider: 'manual',
+    method: 'Cash — paid at the office, no reference given',
   });
 
   /* -------------------------------------------------------------------------- */
@@ -1499,6 +1550,28 @@ export function buildDemoDataset(): DemoDataset {
   }
 
   assertCrossBilled();
+
+  /*
+   * Every provider the app can write must appear in the data.
+   *
+   * `manual` did not, for the whole life of the payments screen. Nothing was
+   * broken in a way a test would catch: the filter bar builds its provider list
+   * from what the ledger actually contains, so a provider with no rows was
+   * silently not offered — and the one provider missing was the one this app
+   * writes itself. The gap was invisible precisely because it was data-shaped.
+   */
+  function assertEveryProviderPresent(): void {
+    const present = new Set(paymentRows.map((p) => p.provider));
+    const missing = paymentProviderEnum.enumValues.filter((p) => !present.has(p));
+    if (missing.length > 0) {
+      throw new Error(
+        `demo dataset: no payment uses ${missing.join(', ')}. A provider with no ` +
+          'rows is a provider the filter bar never offers and the list never renders.',
+      );
+    }
+  }
+
+  assertEveryProviderPresent();
 
   /* ---------------------------------------------------------------------- */
   /* Totals                                                                  */

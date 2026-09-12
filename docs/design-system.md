@@ -1529,6 +1529,27 @@ carrying an exchange rate the app does not have. The seeder reports that balance
 line rather than folding it into the NGN-equivalent total, because a summary that prints
 one number and omits part of the debt is the exact failure the `*` exists to prevent.
 
+**Every provider the enum can hold has at least one payment.** `manual` had none, and
+the consequence was invisible in exactly the way data-shaped gaps are: the payments filter
+builds its provider list from what the ledger actually contains, so the one provider this
+app writes itself — `recordManualPayment` sets it — was the one nobody could filter for.
+Nothing threw, no test failed, and the list simply offered three options instead of four.
+`assertEveryProviderPresent()` now fails the build if any provider drops out of the data
+again.
+
+Two of the three manual rows are instalments on an EXISTING part-paid invoice rather than
+new payments, so every total, status and line-item split stayed where it was; only the
+provider and the method changed. The third is cash with no reference, which is the one
+pairing the others miss: hand-recorded AND unmatched at once. Their methods read the way
+the manual form composes them ("Bank transfer — first instalment"), because a bare
+`bank_transfer` here would be a gateway's vocabulary in a row no gateway touched.
+
+Their references keep the seed's clock-independent `MAN-########` shape rather than the
+`MAN-YYYYMMDD-XXXXXX` the live form generates. Payment ids derive from the reference, so a
+reference carrying the payment's own date would slide with the calendar on every reset —
+the one thing this dataset promises not to do. A demo reference that differs in shape from
+a real one is the cheaper of the two costs.
+
 **Demo and real invoices number in separate spaces.** Demo invoices are
 `DEMO-2026-0001` upward; real ones are `INV-<year>-0001` upward, and the next-number
 generator filters on `is_demo = false` as well as the prefix. Both sequences start at 1, so

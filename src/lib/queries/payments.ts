@@ -3,7 +3,7 @@ import 'server-only';
 import { cache } from 'react';
 import { sql, type SQL } from 'drizzle-orm';
 
-import { db } from '@/lib/db';
+import { db, paymentProviderEnum } from '@/lib/db';
 import type { PaymentProvider, PaymentStatus } from '@/lib/db';
 import { BUSINESS_TIMEZONE } from '@/lib/business-timezone';
 
@@ -62,12 +62,26 @@ export const PAYMENT_STATUSES: PaymentStatus[] = [
   'refunded',
 ];
 
-export const PAYMENT_PROVIDERS: PaymentProvider[] = [
-  'stripe',
-  'paystack',
-  'flutterwave',
-  'manual',
-];
+/**
+ * Derived from the enum, not retyped beside it.
+ *
+ * This was a hand-written array that happened to match `payment_provider`. It
+ * agreed with the enum on the day it was written, which is the only day a
+ * second copy ever agrees: adding a gateway to the schema would have left this
+ * list short, and the filter bar would have silently stopped offering it.
+ */
+export const PAYMENT_PROVIDERS: PaymentProvider[] = [...paymentProviderEnum.enumValues];
+
+/**
+ * The one provider this application writes itself.
+ *
+ * Gateways appear in the filter only once they have delivered a payment, which
+ * is right: a deployment that never wired up Flutterwave should not be offered
+ * it. `manual` is not that kind of value — `recordManualPayment` writes it, so
+ * it is always a thing the ledger can contain, and the moment someone most
+ * wants to filter for it is right after recording the first one.
+ */
+export const SELF_WRITTEN_PROVIDER: PaymentProvider = 'manual';
 
 export function isPaymentSortKey(value: string): value is PaymentSortKey {
   return (PAYMENT_SORT_KEYS as readonly string[]).includes(value);
@@ -321,17 +335,27 @@ export type PaymentFilterOptions = {
   providers: PaymentProvider[];
 };
 
-/** Only values that can actually match something — a filter offering an empty result is noise. */
+/**
+ * Mostly "only values that can actually match something" — a filter offering a
+ * guaranteed-empty result is noise.
+ *
+ * `manual` is the exception and is always offered. It was omitted here for as
+ * long as no manual payment existed, which meant the provider this app writes
+ * was the one provider nobody could filter for — and a user who had just
+ * recorded one by hand had no way to find it until the page happened to be
+ * rebuilt. Offering it against an empty ledger costs one honest empty state.
+ */
 export const getPaymentFilterOptions = cache(
   async (): Promise<PaymentFilterOptions> => {
     const result = await db.execute(sql`
       select distinct currency, provider from payments order by currency
     `);
     const raw = result.rows as Record<string, unknown>[];
+    const present = new Set(raw.map((r) => String(r.provider)));
     return {
       currencies: [...new Set(raw.map((r) => String(r.currency)))].sort(),
-      providers: PAYMENT_PROVIDERS.filter((p) =>
-        raw.some((r) => String(r.provider) === p),
+      providers: PAYMENT_PROVIDERS.filter(
+        (p) => p === SELF_WRITTEN_PROVIDER || present.has(p),
       ),
     };
   },
