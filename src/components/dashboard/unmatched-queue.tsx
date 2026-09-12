@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import type { UnmatchedPayment } from '@/lib/queries/dashboard';
 import { currencySymbol, formatDateTime, formatMinorDigits } from '@/lib/format';
 import { EmptyState } from './empty-state';
@@ -10,10 +12,10 @@ import { ScrollCue } from '@/components/ui/scroll-cue';
  * disabled button advertises a capability the viewer does not have and invites
  * them to go looking for it; the public demo simply has no such column.
  *
- * The button is a surface only — the matching flow is not built. It is a real
- * form posting to a server action so the boundary is honest from the start;
- * that action will call `assertCanWrite()` before it does anything, because
- * hiding a control is not an authorisation check.
+ * The control navigates to the payment, where the matching flow lives. It is a
+ * link because navigation is a read; `matchPayment` itself is a POST from that
+ * page and calls `assertCanWrite()` before anything else, because hiding a
+ * control is not an authorisation check.
  */
 export function UnmatchedQueue({
   payments,
@@ -108,12 +110,15 @@ export function UnmatchedQueue({
                   </td>
                   {readOnly ? null : (
                     <td className="h-11 py-0 pr-5 pl-3 text-right">
-                      <button
-                        type="button"
+                      {/* A link, not a form. Navigating to the payment is a
+                          read; the match itself is a POST from there, which is
+                          what the sameSite=lax cookie requires of a mutation. */}
+                      <Link
+                        href={`/payments/${payment.id}`}
                         className="inline-flex h-8 items-center rounded-sm border border-line-strong px-3 text-small whitespace-nowrap text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-surface-overlay"
                       >
                         Match to invoice
-                      </button>
+                      </Link>
                     </td>
                   )}
                 </tr>

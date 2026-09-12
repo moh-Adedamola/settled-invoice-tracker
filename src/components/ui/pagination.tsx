@@ -3,29 +3,53 @@ import Link from 'next/link';
 import { patchQuery } from '@/lib/search-params';
 
 /**
- * §7 pagination: 32px targets, mono numerals, current page marked with a
- * copper underline rather than a filled pill. Server-side paging — the full
- * ledger is never shipped to the browser.
+ * §7 pagination: 32px targets, mono numerals, current page marked with a copper
+ * underline rather than a filled pill. Server-side paging — the full ledger is
+ * never shipped to the browser.
+ *
+ * ## Why this lives in `ui/` and takes a `basePath`
+ *
+ * It was `InvoicesPagination`, and it built every href as
+ * `` `/invoices${patchQuery(...)}` `` with the path written in. The clients list
+ * then imported it, which made a latent bug: with more than one page of
+ * clients, page 2 would have navigated to the invoice ledger carrying the
+ * client list's filters. Nothing had surfaced it because fourteen clients fit
+ * on one page, and the current page renders as a `<span>` rather than a link —
+ * so the wrong href existed but was never rendered.
+ *
+ * The `aria-label` had the same shape of problem and no threshold at all: the
+ * clients list has been announcing "Invoice pages" to screen readers since the
+ * day it shipped.
+ *
+ * Both are now required props. A default would have preserved exactly the bug
+ * being fixed, since the third consumer to forget the prop gets the first
+ * consumer's path.
  */
-export function InvoicesPagination({
+export function Pagination({
   page,
   pageCount,
   pageSize,
   total,
   query,
+  basePath,
+  label,
 }: {
   page: number;
   pageCount: number;
   pageSize: number;
   total: number;
   query: URLSearchParams;
+  /** The route this list lives at, e.g. `/payments`. */
+  basePath: string;
+  /** Announced to assistive technology, e.g. "Payment pages". */
+  label: string;
 }) {
   if (total === 0) return null;
 
   const first = (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
   const href = (target: number) =>
-    `/invoices${patchQuery(query, { page: target === 1 ? null : String(target) }, { resetPage: false })}`;
+    `${basePath}${patchQuery(query, { page: target === 1 ? null : String(target) }, { resetPage: false })}`;
 
   const step =
     'inline-flex h-8 items-center rounded-sm border border-line-strong px-3 text-small transition-colors duration-[var(--duration-fast)] ease-standard';
@@ -35,10 +59,7 @@ export function InvoicesPagination({
   const numbered = pageCount <= 9;
 
   return (
-    <nav
-      aria-label="Invoice pages"
-      className="flex flex-wrap items-center justify-between gap-3 px-1"
-    >
+    <nav aria-label={label} className="flex flex-wrap items-center justify-between gap-3 px-1">
       <p className="text-small text-ink-muted">
         Showing <span className="money">{first}</span>–<span className="money">{last}</span> of{' '}
         <span className="money">{total}</span>

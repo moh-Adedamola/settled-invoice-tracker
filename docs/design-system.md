@@ -750,6 +750,27 @@ The 3px left rule is the scannable element and is **not optional** — see §3.4
 it the badge column collapses to ΔE 2.0 (dark) / 0.3 (light). With the marker, it is
 what makes "show me everything overdue" a glance rather than a read.
 
+### Row-state marks
+
+Two marks say something about a row that is not one of the seven status states, so they are
+not `StatusBadge` and must not be built from its tokens by hand:
+
+- **`ArchivedMark`** (`clients-table.tsx`) — a client who is archived.
+- **`UnmatchedMark`** (`payments/payment-bits.tsx`) — money no invoice claims.
+
+Both follow §3.4's badge construction, and both exist for the same reason: the cell would
+otherwise be empty, and an empty cell reads as *missing data* — something that will fill
+itself in — rather than as a complete record with work outstanding.
+
+`UnmatchedMark` takes the `pending` token, not `failed`. Nothing has gone wrong: the money
+arrived and is waiting to be placed. `failed` would put a payment that succeeded into the
+same colour as one that was declined.
+
+**A state that needs action must be visible without filtering for it.** The payments list
+shows the mark on every unmatched row *and* leads with a count above the table, because a
+number you only see after filtering is a number nobody sees. The banner is absent, not
+zeroed, when the queue is empty — a standing "0 unmatched" is furniture people stop reading.
+
 ### Button
 
 | Variant | Default | Hover | Active | Focus-visible | Disabled | Loading |
@@ -1131,6 +1152,20 @@ leaving a static block — no pulse. Table skeletons render the real row height 
 widths so nothing shifts on load.
 
 ### Pagination
+
+`Pagination` from `@/components/ui/pagination`. **`basePath` and `label` are required
+props**, and deliberately have no defaults.
+
+It began as `InvoicesPagination` with `/invoices` written into every href and
+`aria-label="Invoice pages"` written into the nav. The clients list then imported it,
+which put a latent bug in the tree: with more than 25 clients, page 2 would have navigated
+into the invoice ledger carrying the client list's filters. Nothing surfaced it because
+fourteen clients fit on one page, and the current page renders as a `<span>` rather than a
+link — so the wrong href existed and was simply never drawn. The `aria-label` had no such
+threshold and had been announcing "Invoice pages" on the clients list since it shipped.
+
+A default for `basePath` would have preserved exactly that: the third list to forget the
+prop inherits the first list's route. Required props make the omission a build error.
 
 32px targets, `text-small`, `money` utility for the numbers. Current page marked with a
 2px copper underline — the ledger rule again, not a filled pill. Prev/next are ghost

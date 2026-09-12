@@ -22,7 +22,7 @@ import { EmptyState } from '@/components/dashboard/empty-state';
 import { ClientFilters } from '@/components/clients/client-filters';
 import { ClientsCards } from '@/components/clients/clients-cards';
 import { ClientsTable } from '@/components/clients/clients-table';
-import { InvoicesPagination } from '@/components/invoices/invoices-pagination';
+import { Pagination } from '@/components/ui/pagination';
 import { PageHeader } from '@/components/shell/page-header';
 import { SkeletonBlock } from '@/components/ui/skeleton';
 
@@ -149,12 +149,14 @@ async function ClientList({
           is in the first paint. Cutover at `md`, per §8. */}
       <ClientsCards result={result} query={query} sort={sort} direction={direction} />
       <ClientsTable result={result} query={query} sort={sort} direction={direction} />
-      <InvoicesPagination
+      <Pagination
         page={result.page}
         pageCount={result.pageCount}
         pageSize={result.pageSize}
         total={result.total}
         query={query}
+        basePath="/clients"
+        label="Client pages"
       />
     </div>
   );

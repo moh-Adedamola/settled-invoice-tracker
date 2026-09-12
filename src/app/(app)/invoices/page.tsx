@@ -27,7 +27,7 @@ import {
 import { EmptyState } from '@/components/dashboard/empty-state';
 import { InvoiceCards } from '@/components/invoices/invoice-cards';
 import { InvoiceFilters } from '@/components/invoices/invoice-filters';
-import { InvoicesPagination } from '@/components/invoices/invoices-pagination';
+import { Pagination } from '@/components/ui/pagination';
 import { InvoicesTable } from '@/components/invoices/invoices-table';
 import { InvoicesTableSkeleton } from '@/components/invoices/invoices-skeleton';
 import { PageHeader } from '@/components/shell/page-header';
@@ -223,12 +223,14 @@ async function InvoiceList({
       <div className="hidden md:block">
         <InvoicesTable result={result} query={query} sort={sort} direction={direction} />
       </div>
-      <InvoicesPagination
+      <Pagination
         page={result.page}
         pageCount={result.pageCount}
         pageSize={result.pageSize}
         total={result.total}
         query={query}
+        basePath="/invoices"
+        label="Invoice pages"
       />
     </div>
   );
