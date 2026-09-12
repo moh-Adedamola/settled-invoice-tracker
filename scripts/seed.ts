@@ -13,7 +13,7 @@
  */
 import { resetDemo, DemoResetBlockedError } from '../src/lib/demo/reset';
 
-const SYMBOL: Record<string, string> = { NGN: '₦', USD: '$', GBP: '£' };
+const SYMBOL: Record<string, string> = { NGN: '₦', USD: '$', GBP: '£', EUR: '€' };
 
 function fmtMinor(minor: string, currency = 'NGN'): string {
   const value = BigInt(minor);
@@ -68,6 +68,11 @@ async function main() {
   console.log(row('total revenue', fmtMinor(summary.totals.revenueMinor)));
   console.log(row('refunded', fmtMinor(summary.totals.refundedMinor)));
   console.log(row('outstanding', fmtMinor(summary.totals.outstandingMinor)));
+  for (const unquoted of summary.totals.outstandingUnquoted) {
+    console.log(
+      row(`  no rate: ${unquoted.currency}`, fmtMinor(unquoted.minor, unquoted.currency)),
+    );
+  }
   console.log(
     row(
       'drafts (not counted)',

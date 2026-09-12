@@ -88,7 +88,7 @@ export function ClientsCards({
               ) : null}
 
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-micro text-ink-muted">
+                <span className="min-w-0 text-micro text-ink-muted">
                   {client.invoiceCount > 0 ? (
                     <>
                       <span className="money">{client.invoiceCount}</span>{' '}
@@ -101,7 +101,17 @@ export function ClientsCards({
                     <> · {formatDateFull(client.lastActivityAt)}</>
                   ) : null}
                 </span>
-                <span data-card-amount="" className="shrink-0 text-small text-ink">
+                {/*
+                  * `min-w-0`, not `shrink-0`. A client billed in three
+                  * currencies renders a breakdown as wide as
+                  * "€2,700.00 · £2,450.00 · ₦1,021,750.00", which at max-content
+                  * runs past the card's padding and is silently clipped by the
+                  * list's `overflow-hidden` — measured 350px against a 344px
+                  * content edge at 360px. Letting the cell shrink lets the
+                  * breakdown wrap onto a second right-aligned line instead, so
+                  * every card keeps the one right edge §8 asks for.
+                  */}
+                <span data-card-amount="" className="min-w-0 text-right text-small text-ink">
                   <MoneyStack client={client} field="outstandingMinor" />
                 </span>
               </div>

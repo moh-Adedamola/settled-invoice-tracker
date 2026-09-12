@@ -125,7 +125,14 @@ export type DemoDataset = {
   totals: {
     revenueMinor: bigint;
     refundedMinor: bigint;
+    /**
+     * NGN equivalent of what is owed, at the flat reference rates — and only
+     * for the currencies those rates cover. Anything invoiced in a currency the
+     * feed does not quote is listed separately in `outstandingUnquoted` rather
+     * than folded in at 1:1, which is the same rule the client query follows.
+     */
     outstandingMinor: bigint;
+    outstandingUnquoted: { currency: string; minor: bigint }[];
     draftCount: number;
     invoicesByStatus: Record<string, number>;
     paymentsByStatus: Record<string, number>;
@@ -303,17 +310,29 @@ export function buildDemoDataset(): DemoDataset {
   /* Money helpers                                                              */
   /* -------------------------------------------------------------------------- */
 
-  type Currency = 'NGN' | 'USD' | 'GBP';
+  type Currency = 'NGN' | 'USD' | 'GBP' | 'EUR';
 
+  /**
+   * The currencies the demo's rate feed quotes against NGN.
+   *
+   * EUR is deliberately not one of them. A currency with no rate is the case
+   * `base_incomplete` exists for — the client query raises it rather than
+   * counting the amount at 1:1 — and without a currency the feed does not
+   * cover, neither that flag nor the `*` it renders has anything to fire on.
+   */
+  type TrackedCurrency = 'NGN' | 'USD' | 'GBP';
 
   /** Flat reference rates in NGN. Payments jitter around these. */
-  const NGN_PER: Record<Currency, number> = { NGN: 1, USD: 1650, GBP: 2090 };
+  const NGN_PER: Record<TrackedCurrency, number> = { NGN: 1, USD: 1650, GBP: 2090 };
+
+  const isTracked = (currency: Currency): currency is TrackedCurrency => currency in NGN_PER;
 
   /** major-unit range and rounding step per currency */
   const AMOUNT_RULES: Record<Currency, { min: number; max: number; step: number }> = {
     NGN: { min: 150_000, max: 2_500_000, step: 5_000 },
     USD: { min: 400, max: 6_000, step: 50 },
     GBP: { min: 300, max: 4_500, step: 50 },
+    EUR: { min: 300, max: 4_500, step: 50 },
   };
 
   /** Returns minor units as bigint. Never mixes bigint with number arithmetic. */
@@ -359,8 +378,10 @@ export function buildDemoDataset(): DemoDataset {
       phone: '+234 701 559 2043',
       currency: 'NGN',
       kind: 'retail',
-      providers: ['paystack', 'flutterwave'],
-      notes: 'Pays on the 25th of the month. Prefers transfer over card.',
+      providers: ['paystack', 'flutterwave', 'stripe'],
+      notes:
+        'Pays on the 25th of the month. Prefers transfer over card. UK and EU ' +
+        'export arms are billed separately, in their own currencies.',
     },
     {
       name: 'Adekunle & Sons',
@@ -429,8 +450,10 @@ export function buildDemoDataset(): DemoDataset {
       phone: '+234 812 305 7748',
       currency: 'NGN',
       kind: 'services',
-      providers: ['paystack', 'flutterwave'],
-      notes: 'Abuja-based. Listings site plus quarterly photo shoots.',
+      providers: ['paystack', 'flutterwave', 'stripe'],
+      notes:
+        'Abuja-based. Listings site plus quarterly photo shoots. The ' +
+        'diaspora-facing portal is billed to their US entity in dollars.',
     },
     {
       name: 'Threadcraft Apparel NG',
@@ -450,7 +473,9 @@ export function buildDemoDataset(): DemoDataset {
       currency: 'GBP',
       kind: 'services',
       providers: ['stripe'],
-      notes: 'London. Net 30, pays reliably on day 29.',
+      notes:
+        'London. Net 30, pays reliably on day 29. The Lagos production work is ' +
+        'invoiced locally, in naira.',
     },
     {
       name: 'Cadence Health Ltd',
@@ -620,7 +645,13 @@ export function buildDemoDataset(): DemoDataset {
   /** Ages in days past due — spread so every reminder sequence has material. */
   const OVERDUE_AGES = [5, 8, 12, 16, 22, 31, 40];
 
-  const clientsByCurrency: Record<Currency, BuiltClient[]> = {
+  /*
+   * The pool a client is drawn from for their own currency. Keyed by the
+   * currencies the plan draws from, which is not every currency that appears in
+   * the ledger — cross-currency work names its client outright and never comes
+   * through here.
+   */
+  const clientsByCurrency: Record<TrackedCurrency, BuiltClient[]> = {
     NGN: builtClients.filter((c) => c.currency === 'NGN'),
     USD: builtClients.filter((c) => c.currency === 'USD'),
     GBP: builtClients.filter((c) => c.currency === 'GBP'),
@@ -628,12 +659,13 @@ export function buildDemoDataset(): DemoDataset {
 
   // 70% NGN / 20% USD / 10% GBP across 60 invoices, exactly.
   const currencyPlan = shuffle([
-    ...Array<Currency>(42).fill('NGN'),
-    ...Array<Currency>(12).fill('USD'),
-    ...Array<Currency>(6).fill('GBP'),
+    ...Array<TrackedCurrency>(42).fill('NGN'),
+    ...Array<TrackedCurrency>(12).fill('USD'),
+    ...Array<TrackedCurrency>(6).fill('GBP'),
   ]);
   let currencyCursor = 0;
-  const nextCurrency = (): Currency => currencyPlan[currencyCursor++ % currencyPlan.length]!;
+  const nextCurrency = (): TrackedCurrency =>
+    currencyPlan[currencyCursor++ % currencyPlan.length]!;
 
   const draftInvoices: BuiltInvoice[] = [];
   const builtInvoices: BuiltInvoice[] = [];
@@ -646,9 +678,15 @@ export function buildDemoDataset(): DemoDataset {
     dueAt: Date | null;
     createdAt: Date;
     sortKey: number;
+    /**
+     * Cross-currency work names both halves, and takes neither from the plan:
+     * the point of those invoices is the pairing, so neither can be a draw.
+     */
+    billTo?: { client: BuiltClient; currency: Currency };
   }): BuiltInvoice {
-    const currency = nextCurrency();
-    const client = pick(clientsByCurrency[currency]);
+    const drawn = args.billTo ? null : nextCurrency();
+    const currency = args.billTo ? args.billTo.currency : drawn!;
+    const client = args.billTo ? args.billTo.client : pick(clientsByCurrency[drawn!]);
     const when = args.issuedAt ?? args.createdAt;
     const sent = args.status === 'draft' ? null : args.issuedAt;
     return {
@@ -766,6 +804,105 @@ export function buildDemoDataset(): DemoDataset {
     partialInvoices.push(invoice);
   }
 
+  /*
+   * --- cross-currency work: one client, more than one currency ---------------
+   *
+   * Everything above picks the currency first and then draws a client from that
+   * currency's pool, so no client could ever be billed in two currencies. That
+   * left the whole mixed-currency presentation with nothing to render anywhere
+   * in the demo: the `≈` mark on a converted total, the exact per-currency
+   * figures beneath it, and the `*` for a currency with no rate at all.
+   *
+   * It is also not how an agency in Lagos actually bills. A client with a UK
+   * arm is invoiced in sterling for that work and in naira for the rest; a
+   * London client with one Lagos production pays for it locally.
+   *
+   * These are written out rather than left to the currency plan on purpose.
+   * Extending the pools so a client sits in two of them would make the coverage
+   * a property of the draw — true today, quietly gone the next time an earlier
+   * call consumes one more random number. Naming the pairing makes it a
+   * property of the dataset.
+   *
+   * Statuses are chosen so the second currency shows up in more than one place:
+   * a settled invoice alone would only ever appear in Invoiced and Paid, and
+   * the Outstanding column — the one the list leads with — would still show a
+   * single currency for every client on the page.
+   */
+  type CrossBilling = {
+    /** The client's email: the natural key their id is derived from. */
+    email: string;
+    currency: Currency;
+    entries: { status: InvoiceStatus; dueInDays: number; term: number }[];
+  };
+
+  const CROSS_BILLING: CrossBilling[] = [
+    {
+      // Abuja property firm; the diaspora-facing portal bills to their US entity.
+      email: 'billing@zumaridge.ng',
+      currency: 'USD',
+      entries: [
+        { status: 'paid', dueInDays: -34, term: 30 },
+        { status: 'sent', dueInDays: 8, term: 30 },
+      ],
+    },
+    {
+      // Lagos food business with a UK export arm, and an EU one behind it.
+      email: 'finance@sabifoods.com.ng',
+      currency: 'GBP',
+      entries: [
+        { status: 'paid', dueInDays: -47, term: 30 },
+        { status: 'sent', dueInDays: 5, term: 14 },
+      ],
+    },
+    {
+      /*
+       * The EU arm, invoiced in a currency the rate feed does not quote.
+       *
+       * Left unpaid deliberately. An unconvertible amount belongs in
+       * Outstanding, where `base_incomplete` marks the converted total as short
+       * of the real one; settling it would have written a payment carrying an
+       * exchange rate the app does not actually have.
+       */
+      email: 'finance@sabifoods.com.ng',
+      currency: 'EUR',
+      entries: [{ status: 'sent', dueInDays: 11, term: 30 }],
+    },
+    {
+      // London studio, one Lagos production, invoiced locally.
+      email: 'accounts@northbankstudios.co.uk',
+      currency: 'NGN',
+      entries: [
+        { status: 'paid', dueInDays: -26, term: 14 },
+        { status: 'sent', dueInDays: 6, term: 14 },
+      ],
+    },
+  ];
+
+  const clientByEmail = new Map(builtClients.map((c) => [c.email, c]));
+
+  for (const pairing of CROSS_BILLING) {
+    const client = clientByEmail.get(pairing.email);
+    if (!client) {
+      throw new Error(
+        `Demo seed: cross-billing names ${pairing.email}, which is not a seeded client.`,
+      );
+    }
+    for (const entry of pairing.entries) {
+      const spec: TimeSpec = { kind: 'dated', dueInDays: entry.dueInDays, term: entry.term };
+      const issuedAt = renderIssuedAt(spec, NOW);
+      builtInvoices.push(
+        makeInvoice({
+          billTo: { client, currency: pairing.currency },
+          status: entry.status,
+          issuedAt,
+          dueAt: addDays(NOW, entry.dueInDays),
+          createdAt: addHours(issuedAt, -2),
+          sortKey: sortKeyFor(spec),
+        }),
+      );
+    }
+  }
+
   // --- draft (3): never issued, so no issuedAt/dueAt/sentAt ------------------
   for (let n = 0; n < 3; n++) {
     const daysAgo = randInt(1, 21);
@@ -837,7 +974,12 @@ export function buildDemoDataset(): DemoDataset {
    * fxRate is numeric in Postgres and maps to string in Drizzle — pass a string.
    */
   function fxFor(currency: Currency, amountMinor: bigint, at: Date): FxFields {
-    if (currency === 'NGN') return { baseAmountMinor: null, fxRate: null, fxAt: null };
+    // No conversion for the base currency, and none for a currency the feed
+    // does not quote — storing a rate we do not have is how a figure nobody
+    // can reconcile gets into the ledger.
+    if (currency === 'NGN' || !isTracked(currency)) {
+      return { baseAmountMinor: null, fxRate: null, fxAt: null };
+    }
     const rate = NGN_PER[currency] * (1 + (rand() - 0.5) * 0.04);
     return {
       // amountMinor is in cents/pence; cents * (NGN per unit) = kobo.
@@ -1316,6 +1458,48 @@ export function buildDemoDataset(): DemoDataset {
   assertDistinctIds('reminders', reminderRows.map((r) => r.id));
   assertDistinctIds('fx rates', fxRateRows.map((r) => r.id));
 
+  /*
+   * The mixed-currency coverage is the reason CROSS_BILLING exists, so it is
+   * checked rather than assumed. A client who ends up with one currency renders
+   * exactly like every other client, and the `≈` treatment goes back to having
+   * nothing to show — silently, and only visible to someone who thought to look
+   * at that particular client.
+   */
+  function assertCrossBilled(): void {
+    const currencies = new Map<string, Set<string>>();
+    for (const invoice of builtInvoices) {
+      const set = currencies.get(invoice.client.email) ?? new Set<string>();
+      set.add(invoice.currency);
+      currencies.set(invoice.client.email, set);
+    }
+
+    for (const pairing of CROSS_BILLING) {
+      const seen = currencies.get(pairing.email);
+      if (!seen || seen.size < 2 || !seen.has(pairing.currency)) {
+        throw new Error(
+          `demo dataset: ${pairing.email} was meant to be billed in ${pairing.currency} ` +
+            `alongside their own currency, but their invoices are ${
+              seen ? [...seen].join(' + ') : 'none'
+            }. The mixed-currency path has nothing to render.`,
+        );
+      }
+    }
+
+    // At least one client must hold a currency with no rate, or base_incomplete
+    // and the `*` it renders are unreachable.
+    const untracked = builtInvoices.filter(
+      (i) => !isTracked(i.currency) && i.status !== 'draft' && i.status !== 'void',
+    );
+    if (untracked.length === 0) {
+      throw new Error(
+        'demo dataset: no live invoice in an unquoted currency, so base_incomplete ' +
+          'can never be true and the incomplete-total marker is never rendered.',
+      );
+    }
+  }
+
+  assertCrossBilled();
+
   /* ---------------------------------------------------------------------- */
   /* Totals                                                                  */
   /* ---------------------------------------------------------------------- */
@@ -1331,12 +1515,32 @@ export function buildDemoDataset(): DemoDataset {
     .reduce((sum, p) => sum + (p.baseAmountMinor ?? p.amountMinor!), 0n);
 
   // Outstanding: issued but unpaid, at the flat reference rates.
-  const outstandingMinor = builtInvoices
-    .filter((i) => i.status === 'sent' || i.status === 'overdue' || i.status === 'partial')
+  const owed = builtInvoices.filter(
+    (i) => i.status === 'sent' || i.status === 'overdue' || i.status === 'partial',
+  );
+
+  const outstandingMinor = owed
+    .filter((i) => isTracked(i.currency))
     .reduce(
-      (sum, i) => sum + BigInt(Math.round(Number(i.amountMinor) * NGN_PER[i.currency])),
+      (sum, i) =>
+        sum + BigInt(Math.round(Number(i.amountMinor) * NGN_PER[i.currency as TrackedCurrency])),
       0n,
     );
+
+  /*
+   * What is owed in a currency there is no rate for. Reported on its own rather
+   * than converted at 1:1 or quietly dropped: a summary that prints one total
+   * and omits part of the debt is the failure `base_incomplete` exists to make
+   * visible in the UI, and the seeder should not commit it on the way past.
+   */
+  const outstandingUnquoted = [
+    ...owed
+      .filter((i) => !isTracked(i.currency))
+      .reduce((acc, i) => {
+        acc.set(i.currency, (acc.get(i.currency) ?? 0n) + i.amountMinor);
+        return acc;
+      }, new Map<string, bigint>()),
+  ].map(([currency, minor]) => ({ currency, minor }));
 
   const invoicesByStatus = builtInvoices.reduce<Record<string, number>>((acc, i) => {
     acc[i.status] = (acc[i.status] ?? 0) + 1;
@@ -1361,6 +1565,7 @@ export function buildDemoDataset(): DemoDataset {
       revenueMinor,
       refundedMinor,
       outstandingMinor,
+      outstandingUnquoted,
       draftCount: draftInvoices.length,
       invoicesByStatus,
       paymentsByStatus,
@@ -1522,7 +1727,9 @@ export type ResetSummary = {
   totals: {
     revenueMinor: string;
     refundedMinor: string;
+    /** Covers only the currencies the rate feed quotes — see the dataset type. */
     outstandingMinor: string;
+    outstandingUnquoted: { currency: string; minor: string }[];
     draftCount: number;
     invoicesByStatus: Record<string, number>;
     paymentsByStatus: Record<string, number>;
@@ -1667,6 +1874,10 @@ export async function resetDemo(): Promise<ResetSummary> {
       revenueMinor: dataset.totals.revenueMinor.toString(),
       refundedMinor: dataset.totals.refundedMinor.toString(),
       outstandingMinor: dataset.totals.outstandingMinor.toString(),
+      outstandingUnquoted: dataset.totals.outstandingUnquoted.map((t) => ({
+        currency: t.currency,
+        minor: t.minor.toString(),
+      })),
       draftCount: dataset.totals.draftCount,
       invoicesByStatus: dataset.totals.invoicesByStatus,
       paymentsByStatus: dataset.totals.paymentsByStatus,

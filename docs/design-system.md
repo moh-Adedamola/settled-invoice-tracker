@@ -1280,6 +1280,16 @@ academic: that duplicate was the longest string in the entry and at 360px it ove
 19px, dragging the total off the shared right edge. Where a subordinate figure can still be
 too wide, it is the one that truncates; the total never does.
 
+**A money cell that can grow gets `min-w-0`, never `shrink-0`.** The clients list's stacked
+entry pins one converted total with the exact per-currency figures beneath it, and that
+second line is as long as the client has currencies: `€2,700.00 · £2,450.00 · ₦1,021,750.00`
+measures 350px against a 344px content edge at 360px. With `shrink-0` the cell sits at
+max-content, runs past the card's padding, and the list's own `overflow-hidden` clips the
+overflow **silently** — no horizontal scrollbar, no visible truncation, just a figure that
+stops. `min-w-0` lets the cell take the width it is given and the breakdown wraps onto a
+second right-aligned line, which keeps the shared right edge. `shrink-0` is right for a
+figure with a bounded width and wrong for any cell whose content is a list.
+
 **The scroll cue.** A clipped column at the container edge is ambiguous: a clean vertical
 cut reads as the end of the table just as easily as the edge of the window, and at 560px
 the invoice ledger cuts through the middle of a date. The cue is a **28px fade to the
@@ -1442,9 +1452,16 @@ entrances are removed outright.
 ## 9b. Demo data: what exists is fixed, when it happened slides
 
 Not a visual rule, but it governs every figure in every screenshot, so it belongs with
-them. `buildDemoDataset()` is reproducible: the same fourteen clients, the same 52
-invoices with the same numbers, amounts and line-item splits, the same payments and
-reminders, and the same row ids — on every reset, forever. Only the dates move.
+them. `buildDemoDataset()` is reproducible: the same fourteen clients, the same 59
+invoices with the same numbers, amounts, currencies and line-item splits, the same payments
+and reminders, and the same row ids — on every reset, forever. Only the dates move.
+
+Two things track the calendar and are not composition drifting: a month name rendered into
+a description (`Monthly SEO retainer, June` reads `…, April` when that invoice slides to
+April — same id, same client, same amount) and `fx_rates` ids, which are keyed on the
+rate's date because that table is a time series. Verified across 2026-09-12, 2027-01-01,
+2028-02-29 and 2030-07-04: ids, numbers, clients, currencies, amounts, statuses, payment
+references and rate values identical; every date different.
 
 **The dataset has to exercise the design system, not just fill it.** A token that never
 renders is a token nobody has checked. Two shapes are seeded deliberately for that reason:
@@ -1454,6 +1471,28 @@ the reader nothing), and four invoices are part-paid with two or three succeeded
 against them — one with a failed attempt interleaved — so the `partial` status token
 renders and the payment history's running balance shows a real descending sequence with an
 attempt that visibly does not move it.
+
+**Three clients are billed in more than one currency, and one of those currencies has no
+rate.** `makeInvoice` draws the currency first and then a client from that currency's pool,
+so for as long as that was the only path no client could hold two currencies — which left
+the entire mixed-currency treatment unrendered: the `≈` on a converted total, the exact
+per-currency figures under it, and the `*` that says a currency had no rate and the total
+is short. All three are §3 rules with nothing on screen to check them against.
+
+The pairings are named in `CROSS_BILLING` rather than produced by widening the pools. A
+client sitting in two pools would cover this *today* and stop the next time an earlier call
+consumes one more random number, silently and in a place nobody would look. Naming them
+makes the coverage a property of the dataset, and `assertCrossBilled()` fails the build if
+it ever stops holding. Statuses are chosen per pairing so the second currency lands in both
+Invoiced and Outstanding — a settled invoice alone would leave the Outstanding column, the
+one the list leads with, single-currency for every client on the page.
+
+EUR is deliberately absent from the seeded `fx_rates`. It is the only way `base_incomplete`
+is ever true, and that flag is what stops an unconvertible amount being quietly counted at
+1:1. The EUR invoice is left unpaid on purpose: settling it would have written a payment
+carrying an exchange rate the app does not have. The seeder reports that balance on its own
+line rather than folding it into the NGN-equivalent total, because a summary that prints
+one number and omits part of the debt is the exact failure the `*` exists to prevent.
 
 **Demo and real invoices number in separate spaces.** Demo invoices are
 `DEMO-2026-0001` upward; real ones are `INV-<year>-0001` upward, and the next-number

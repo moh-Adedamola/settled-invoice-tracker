@@ -12,6 +12,7 @@ const SYMBOL: Record<string, string> = {
   NGN: '₦',
   USD: '$',
   GBP: '£',
+  EUR: '€',
 };
 
 export function currencySymbol(currency: string): string {
