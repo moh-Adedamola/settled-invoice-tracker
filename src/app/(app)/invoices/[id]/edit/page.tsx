@@ -3,7 +3,8 @@ import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import { isReadOnly, requireUser } from '@/lib/auth/guard';
-import { getInvoice, getInvoiceFilterOptions } from '@/lib/queries/invoices';
+import { getInvoice } from '@/lib/queries/invoices';
+import { getAssignableClients } from '@/lib/queries/clients';
 import { dateToForm } from '@/lib/invoices/form-schema';
 import { formatMinorDigits } from '@/lib/format';
 import { InvoiceForm } from '@/components/invoices/invoice-form';
@@ -67,7 +68,7 @@ export default async function EditInvoicePage({
     );
   }
 
-  const options = await getInvoiceFilterOptions();
+  const clients = await getAssignableClients();
 
   return (
     <>
@@ -83,7 +84,7 @@ export default async function EditInvoicePage({
       <div className="px-6 py-6">
         <InvoiceForm
           action={updateInvoice}
-          options={options}
+          options={{ clients, currencies: [] }}
           invoiceId={invoice.id}
           submitLabel="Save draft"
           cancelHref={`/invoices/${invoice.id}`}

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import { isReadOnly, requireUser } from '@/lib/auth/guard';
-import { getInvoiceFilterOptions } from '@/lib/queries/invoices';
+import { getAssignableClients } from '@/lib/queries/clients';
 import { InvoiceForm } from '@/components/invoices/invoice-form';
 import { PageHeader } from '@/components/shell/page-header';
 
@@ -21,7 +21,13 @@ export default async function NewInvoicePage() {
    */
   if (await isReadOnly()) redirect('/invoices');
 
-  const options = await getInvoiceFilterOptions();
+  /*
+   * getAssignableClients, NOT getInvoiceFilterOptions. The latter inner-joins
+   * invoices, so it could only ever offer a client who had already been billed
+   * — a client created this morning could not be invoiced this afternoon. It
+   * also excludes archived clients, which is the point of archiving.
+   */
+  const clients = await getAssignableClients();
 
   return (
     <>
@@ -33,7 +39,7 @@ export default async function NewInvoicePage() {
       <div className="px-6 py-6">
         <InvoiceForm
           action={createInvoice}
-          options={options}
+          options={{ clients, currencies: [] }}
           submitLabel="Create draft"
           cancelHref="/invoices"
           initial={{

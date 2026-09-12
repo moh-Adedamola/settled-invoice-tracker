@@ -4,6 +4,7 @@ import type { InvoiceListResult, InvoiceListRow, SortKey } from '@/lib/queries/i
 import { currencySymbol, formatDateFull, formatMinorDigits } from '@/lib/format';
 import { patchQuery } from '@/lib/search-params';
 import { ScrollCue } from '@/components/ui/scroll-cue';
+import { SortableColumn } from '@/components/ui/sortable-column';
 import { StatusBadge, invoiceStatusKey } from '@/components/ui/status-badge';
 
 /**
@@ -79,53 +80,48 @@ export function InvoicesTable({
             <th scope="col" className={`${headCell} sticky left-0 z-20 px-4 text-left`}>
               Invoice
             </th>
-            <th scope="col" className={`${headCell} text-left`}>
-              <SortLink
-                href={sortHref('client')}
-                label="Client"
-                active={sort === 'client'}
-                direction={direction}
-              />
-            </th>
-            <th scope="col" className={`${headCell} text-left`}>
-              <SortLink
-                href={sortHref('status')}
-                label="Status"
-                active={sort === 'status'}
-                direction={direction}
-              />
-            </th>
-            {SCROLLING_COLUMNS.map((column) => (
-              <th
-                key={column.label}
-                scope="col"
-                className={`${headCell} ${column.align === 'right' ? 'text-right' : 'text-left'}`}
-              >
-                {column.key ? (
-                  <SortLink
-                    href={sortHref(column.key)}
-                    label={column.label}
-                    active={sort === column.key}
-                    direction={direction}
-                    align={column.align}
-                  />
-                ) : (
-                  column.label
-                )}
-              </th>
-            ))}
-            <th
-              scope="col"
+            <SortableColumn
+              href={sortHref('client')}
+              label="Client"
+              active={sort === 'client'}
+              direction={direction}
+              className={`${headCell} text-left`}
+            />
+            <SortableColumn
+              href={sortHref('status')}
+              label="Status"
+              active={sort === 'status'}
+              direction={direction}
+              className={`${headCell} text-left`}
+            />
+            {SCROLLING_COLUMNS.map((column) => {
+              const cellClass = `${headCell} ${column.align === 'right' ? 'text-right' : 'text-left'}`;
+              // A column that cannot be sorted takes no aria-sort at all — the
+              // attribute means "sortable", and `none` means "not right now".
+              return column.key ? (
+                <SortableColumn
+                  key={column.label}
+                  href={sortHref(column.key)}
+                  label={column.label}
+                  active={sort === column.key}
+                  direction={direction}
+                  align={column.align}
+                  className={cellClass}
+                />
+              ) : (
+                <th key={column.label} scope="col" className={cellClass}>
+                  {column.label}
+                </th>
+              );
+            })}
+            <SortableColumn
+              href={sortHref('amount')}
+              label="Amount"
+              active={sort === 'amount'}
+              direction={direction}
+              align="right"
               className={`${headCell} sticky right-0 z-20 border-l border-line pr-5 text-right`}
-            >
-              <SortLink
-                href={sortHref('amount')}
-                label="Amount"
-                active={sort === 'amount'}
-                direction={direction}
-                align="right"
-              />
-            </th>
+            />
           </tr>
         </thead>
 
@@ -213,39 +209,5 @@ function PaidCell({ invoice }: { invoice: InvoiceListRow }) {
       <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
       {formatMinorDigits(invoice.paidMinor)}
     </span>
-  );
-}
-
-function SortLink({
-  href,
-  label,
-  active,
-  direction,
-  align = 'left',
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-  direction: 'asc' | 'desc';
-  align?: 'left' | 'right';
-}) {
-  return (
-    <Link
-      href={href}
-      // §7: the active column is marked with a copper underline, not an icon swap.
-      className={`inline-flex items-center gap-1 rounded-xs ${
-        align === 'right' ? 'flex-row-reverse' : ''
-      } ${
-        active
-          ? 'text-ink underline decoration-accent decoration-2 underline-offset-[6px]'
-          : 'hover:text-ink'
-      }`}
-      aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}
-    >
-      {label}
-      <span aria-hidden="true" className={active ? 'text-accent' : 'text-transparent'}>
-        {active && direction === 'asc' ? '↑' : '↓'}
-      </span>
-    </Link>
   );
 }

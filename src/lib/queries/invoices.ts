@@ -282,15 +282,26 @@ export async function listInvoices(
 }
 
 export type InvoiceFilterOptions = {
-  clients: Array<{ id: string; name: string }>;
+  clients: Array<{ id: string; name: string; archived?: boolean }>;
   currencies: string[];
 };
 
-/** Populates the filter controls from what is actually in the ledger. */
+/**
+ * Populates the FILTER controls from what is actually in the ledger.
+ *
+ * This deliberately keeps archived clients, unlike `getAssignableClients`.
+ * Archiving stops a client being offered for NEW work; it does not hide the
+ * work already done for them, and filtering the ledger down to their invoices
+ * is exactly the thing someone does after archiving them. They are marked
+ * rather than removed.
+ *
+ * The inner join is right here and wrong in a picker: a filter should only
+ * offer values that can match something.
+ */
 export async function getInvoiceFilterOptions(): Promise<InvoiceFilterOptions> {
   const [clientRows, currencyRows] = await Promise.all([
     db.execute(sql`
-      select distinct c.id::text as id, c.name
+      select distinct c.id::text as id, c.name, (c.archived_at is not null) as archived
       from clients c
       join invoices i on i.client_id = c.id
       order by c.name
@@ -302,6 +313,7 @@ export async function getInvoiceFilterOptions(): Promise<InvoiceFilterOptions> {
     clients: (clientRows.rows as Record<string, unknown>[]).map((r) => ({
       id: String(r.id),
       name: String(r.name),
+      archived: r.archived === true,
     })),
     currencies: (currencyRows.rows as Record<string, unknown>[]).map((r) =>
       String(r.currency),

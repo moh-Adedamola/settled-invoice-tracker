@@ -76,6 +76,7 @@ export function InvoiceFilters({
             {options.clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.name}
+                {client.archived ? ' (archived)' : ''}
               </option>
             ))}
           </select>

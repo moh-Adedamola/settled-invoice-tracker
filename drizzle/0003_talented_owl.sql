@@ -1,0 +1,23 @@
+-- ===========================================================================
+-- Archiving clients, not deleting them.
+--
+-- `payments.client_id` and `invoices.client_id` carry no ON DELETE, so deleting
+-- a client that has ever been billed fails on a foreign key. Adding a cascade
+-- would be worse than the error it removes: it would vaporise the payment
+-- history of anyone you stopped working with, and a ledger that can forget
+-- money is not a ledger.
+--
+-- `archived_at` is nullable timestamptz rather than a boolean because "when" is
+-- the part you want later. Reconciling a payment that arrived after someone
+-- stopped being a client is exactly the moment the date matters, and a boolean
+-- has already thrown it away.
+--
+-- NULLABLE, NO BACKFILL, NO DEFAULT. Every existing client is active, which is
+-- what a null already means. Nothing to rewrite, and the column is additive:
+-- code that has not been taught about archiving keeps working unchanged.
+--
+-- The partial index serves the list's default predicate (`archived_at is null`)
+-- ordered by name. Partial because the rows it leaves out are the rare ones.
+-- ===========================================================================
+ALTER TABLE "clients" ADD COLUMN "archived_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX "clients_active_idx" ON "clients" USING btree ("name") WHERE "clients"."archived_at" is null;

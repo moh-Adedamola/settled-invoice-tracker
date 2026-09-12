@@ -99,12 +99,33 @@ export const clients = pgTable(
       .notNull()
       .default({}),
     notes: text('notes'),
+    /**
+     * When this client was archived, or null while they are active.
+     *
+     * A timestamp rather than a boolean because "when" is the part you need
+     * later — reconciling a payment that arrived after someone stopped being a
+     * client is exactly the moment you want the date, and a boolean has thrown
+     * it away.
+     *
+     * Archiving rather than deleting, because `payments.client_id` and
+     * `invoices.client_id` carry no ON DELETE. Adding a cascade would be worse
+     * than the FK error it removes: deleting a client would vaporise their
+     * payment history, and a ledger that can forget money is not a ledger.
+     * An archived client is hidden from pickers and out of the list by default;
+     * every record that references them still resolves.
+     */
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     isDemo: boolean('is_demo').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  // Not unique: real clients share billing inboxes, and demo rows would collide.
-  (t) => [index('clients_email_idx').on(t.email)],
+  (t) => [
+    // Not unique: real clients share billing inboxes, and demo rows would collide.
+    index('clients_email_idx').on(t.email),
+    // The list hides archived clients by default, so that predicate is on the
+    // hot path. Partial, because the rows it excludes are the rare ones.
+    index('clients_active_idx').on(t.name).where(sql`${t.archivedAt} is null`),
+  ],
 );
 
 /* -------------------------------------------------------------------------- */

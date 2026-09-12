@@ -662,7 +662,60 @@ screenshot.
   Never use it decoratively.
 - Money columns right-aligned, `money` utility, currency mark in its own span.
 - Sort indicator: a 1px copper underline beneath the active column header, not an icon
-  swap.
+  swap. See **Sortable column header** below — the visual mark is only half of it.
+
+#### Sortable column header
+
+Use `SortableColumn` from `@/components/ui/sortable-column`. It renders the `<th>`
+itself, not just the link inside it. **Do not hand-write a sortable `<th>`**, and do not
+reintroduce a per-table `SortLink`.
+
+```tsx
+<SortableColumn
+  href={sortHref('amount')}
+  label="Amount"
+  active={sort === 'amount'}
+  direction={direction}
+  align="right"
+  className={`${headCell} sticky right-0 z-20 border-l border-line pr-5 text-right`}
+/>
+```
+
+The rule it exists to enforce:
+
+| Column | Markup |
+| --- | --- |
+| sorted, this direction | `<th aria-sort="ascending">` / `"descending"` |
+| sortable, not sorted now | `<th aria-sort="none">` |
+| not sortable at all | plain `<th scope="col">`, **no** `aria-sort` |
+
+**`aria-sort` goes on the `<th>`, never on the link inside it.** It is defined only for
+the `columnheader` and `rowheader` roles, so on an `<a>` — whose role is `link` — it is
+ignored outright. Both the ledger and the client list shipped it that way, which meant
+the sort state was carried entirely by a copper underline and an `aria-hidden` arrow:
+available to anyone who could see the header, and to nobody else. A screen reader
+announced a table of fourteen rows with no indication of what had ordered them.
+
+`aria-sort="none"` is not padding — it means *sortable, not sorted right now*, which is
+what tells a reader the other columns are also things they can sort by. Omitting the
+attribute says the opposite, so a column that genuinely cannot be sorted is the only one
+that leaves it off.
+
+**Measured in Chrome's internal accessibility tree** (`chrome://accessibility`, `blink`
+API type — the tree every platform accessibility API is mapped from), not in the markup.
+Across six sort states over both tables: exactly one `columnHeader` per table reports a
+`sortDirection`, it is the expected column in the expected direction, every other
+sortable column reports none, and the unsortable ones carry no ARIA attribute at all.
+The control that makes this worth anything is the old markup: with `aria-sort` on the
+`<a>`, **no** column reports a direction — the tree cannot see it, which is exactly the
+bug.
+
+Two notes for whoever measures this next. CDP's `Accessibility.getFullAXTree` does **not**
+serialise `sort` — a control page with `aria-sort="ascending"` comes back with only
+`readonly` and `required`, so that API cannot answer this question and a green run
+against it means nothing. And `chrome://accessibility` returns an empty dump under
+`--headless=new`; it needs a real window, which can be parked off-screen with
+`--window-position=-2400,-2400`.
 
 **Order columns by what has to be read together, and put the widest opaque identifier
 last.** In the invoice payment history, Reference — a 214px column of strings like
