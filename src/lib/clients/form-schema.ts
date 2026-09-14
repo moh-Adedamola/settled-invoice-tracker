@@ -18,6 +18,8 @@ export const clientFormSchema = z.object({
     .max(120, 'Keep it under 120 characters.'),
   email: z.union([z.email('That does not look like an email address.'), z.literal('')]),
   phone: z.string().trim().max(40, 'Keep it under 40 characters.'),
+  /** Printed on the invoice PDF as typed, so line breaks are kept. */
+  address: z.string().trim().max(400, 'Keep it under 400 characters.'),
   notes: z.string().trim().max(2000, 'Keep it under 2000 characters.'),
 });
 

@@ -23,13 +23,14 @@ export type ClientWriteInput = {
   name: string;
   email: string | null;
   phone: string | null;
+  address: string | null;
   notes: string | null;
 };
 
 export async function insertClient(input: ClientWriteInput): Promise<{ id: string }> {
   const result = await db.execute(sql`
-    insert into clients (name, email, phone, notes, is_demo)
-    values (${input.name}, ${input.email}, ${input.phone}, ${input.notes}, false)
+    insert into clients (name, email, phone, address, notes, is_demo)
+    values (${input.name}, ${input.email}, ${input.phone}, ${input.address}, ${input.notes}, false)
     returning id::text as id
   `);
   const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -47,6 +48,7 @@ export async function updateClientRow(
       name       = ${input.name},
       email      = ${input.email},
       phone      = ${input.phone},
+      address    = ${input.address},
       notes      = ${input.notes},
       updated_at = now()
     where id = ${id}::uuid

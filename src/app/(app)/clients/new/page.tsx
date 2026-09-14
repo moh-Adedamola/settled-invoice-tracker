@@ -28,7 +28,7 @@ export default async function NewClientPage() {
           action={createClient}
           submitLabel="Create client"
           cancelHref="/clients"
-          initial={{ name: '', email: '', phone: '', notes: '' }}
+          initial={{ name: '', email: '', phone: '', address: '', notes: '' }}
         />
       </div>
     </>

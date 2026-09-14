@@ -11,12 +11,17 @@ import {
   Svg,
   Text,
   View,
-  renderToBuffer,
 } from '@react-pdf/renderer';
 
 import type { DocumentProps, Style } from '@react-pdf/types';
 
 import type { InvoiceDetail } from '@/lib/queries/invoices';
+import type { EffectiveStatus } from '@/lib/queries/invoice-status';
+import {
+  invoiceStatusKey,
+  type StatusKey,
+} from '@/components/ui/status-badge';
+import { renderDocumentToBuffer } from '@/lib/pdf/render-document';
 import { getInvoice } from '@/lib/queries/invoices';
 import { getSettings, type Settings } from '@/lib/queries/settings';
 import { currencySymbol, formatDateFull, formatMinorDigits } from '@/lib/format';
@@ -138,16 +143,33 @@ const INK = {
  */
 type MarkerShape = 'filled' | 'half' | 'triangle' | 'open' | { glyph: string };
 
+/**
+ * Keyed by PRESENTATION state, and indexed through `invoiceStatusKey` — never
+ * by an invoice status directly.
+ *
+ * This table used to be indexed with the effective invoice status, which is a
+ * different vocabulary: §3.2 maps the schema's `sent` onto the presentation
+ * state `pending`. There is no `sent` key here, so `STATUS_PRINT['sent']` was
+ * undefined and fell through to the `?? draft` fallback — **every sent invoice
+ * printed a DRAFT badge**, on the document the client receives. It went
+ * unnoticed because the PDFs I had looked at were paid, partial and overdue.
+ *
+ * `invoiceStatusKey` is the single definition of that mapping and the one the
+ * screens use, so the badge on the PDF and the badge on the invoice page cannot
+ * disagree again. Labels come from there too rather than being restated here.
+ */
 const STATUS_PRINT: Record<
-  string,
-  { fg: string; bg: string; border: string; marker: MarkerShape; label: string }
+  StatusKey,
+  { fg: string; bg: string; border: string; marker: MarkerShape }
 > = {
-  paid: { fg: '#07553f', bg: '#dcf6ec', border: '#8dc9b4', marker: 'filled', label: 'Paid' },
-  pending: { fg: '#0f69a4', bg: '#dcf0fb', border: '#93c2e0', marker: 'half', label: 'Sent' },
-  partial: { fg: '#2f2903', bg: '#f4f1de', border: '#d6d2ba', marker: { glyph: '½' }, label: 'Partial' },
-  overdue: { fg: '#846500', bg: '#fbefd0', border: '#d3b675', marker: 'triangle', label: 'Overdue' },
-  draft: { fg: '#3e5873', bg: '#e9eef4', border: '#a8b6c6', marker: 'open', label: 'Draft' },
-  void: { fg: '#646d77', bg: '#eef0f2', border: '#bcc1c6', marker: { glyph: '—' }, label: 'Void' },
+  paid: { fg: '#07553f', bg: '#dcf6ec', border: '#8dc9b4', marker: 'filled' },
+  pending: { fg: '#0f69a4', bg: '#dcf0fb', border: '#93c2e0', marker: 'half' },
+  partial: { fg: '#2f2903', bg: '#f4f1de', border: '#d6d2ba', marker: { glyph: '½' } },
+  overdue: { fg: '#846500', bg: '#fbefd0', border: '#d3b675', marker: 'triangle' },
+  failed: { fg: '#9a0a2c', bg: '#fde7ea', border: '#e2949f', marker: { glyph: '✕' } },
+  refunded: { fg: '#622c91', bg: '#f2e9fb', border: '#bfa0da', marker: { glyph: '↺' } },
+  draft: { fg: '#3e5873', bg: '#e9eef4', border: '#a8b6c6', marker: 'open' },
+  void: { fg: '#646d77', bg: '#eef0f2', border: '#bcc1c6', marker: { glyph: '—' } },
 };
 
 /* -------------------------------------------------------------------------- */
@@ -180,6 +202,40 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: INK.primary,
     backgroundColor: INK.paper,
+    /*
+     * LIGATURES OFF, and this is load-bearing rather than typographic taste.
+     *
+     * @react-pdf/renderer writes a ToUnicode CMap so a reader can copy text out
+     * of the PDF. It does not handle a glyph that stands for MORE THAN ONE
+     * codepoint, and an `fi` ligature is exactly that. One substitution
+     * misaligns the rest of the map, so the corruption is not confined to the
+     * ligature — it runs to the end of the run. Measured, same string, same
+     * document:
+     *
+     *   liga on    "Bank transfer - irst lnstampent"
+     *   liga off   "Bank transfer - first instalment"
+     *
+     * and with several ligatures, "Office affix" came out "xf;ce af;W".
+     *
+     * The page still RENDERED correctly throughout — rasterised and inspected,
+     * every glyph was right. Only extraction was wrong, which is the worse way
+     * for it to be wrong: a client copying a line out of an invoice, or any
+     * system indexing one, silently gets corrupted text and nothing looks
+     * broken.
+     *
+     * IBM Plex Mono is unaffected because it ships no `liga` feature, which is
+     * what localised the fault: Mono extracted perfectly in every arrangement
+     * while Sans failed in all of them.
+     *
+     * Only `liga` is disabled. `ccmp` composes and positions combining marks,
+     * so turning it off would risk accented client names; verified unnecessary
+     * — with `liga` off alone, "Adébáyò Òyèlárán, café, naïve, Zoë", fractions,
+     * the fraction slash and precomposed U+FB01 all extract byte-identical.
+     *
+     * Inherited by every Text on the page, including nested ones and other
+     * weights — also verified, rather than assumed.
+     */
+    fontFeatureSettings: { liga: false },
   },
 
   masthead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
@@ -379,12 +435,14 @@ function Marker({ shape, color }: { shape: MarkerShape; color: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_PRINT[status] ?? STATUS_PRINT.draft!;
+function StatusBadge({ status }: { status: EffectiveStatus }) {
+  // One mapping, shared with the screens — see the note on STATUS_PRINT.
+  const { key, label } = invoiceStatusKey(status);
+  const s = STATUS_PRINT[key];
   return (
     <View style={[styles.badge, { backgroundColor: s.bg, borderColor: s.border, borderLeftColor: s.fg }]}>
       <Marker shape={s.marker} color={s.fg} />
-      <Text style={[styles.badgeLabel, { color: s.fg }]}>{s.label.toUpperCase()}</Text>
+      <Text style={[styles.badgeLabel, { color: s.fg }]}>{label.toUpperCase()}</Text>
     </View>
   );
 }
@@ -487,7 +545,7 @@ function Totals({ invoice, succeeded }: { invoice: InvoiceDetail; succeeded: Inv
         <Text
           style={[
             styles.grandValue,
-            balance <= 0n ? { color: STATUS_PRINT.paid!.fg } : {},
+            balance <= 0n ? { color: STATUS_PRINT.paid.fg } : {},
           ]}
         >
           {currencySymbol(invoice.currency)}
@@ -610,6 +668,11 @@ export function InvoiceDocument({
           <View style={styles.partyBlock}>
             <Text style={styles.eyebrow}>BILLED TO</Text>
             <Text style={styles.partyName}>{invoice.client.name}</Text>
+            {/* Address above the email: a billed-to block is a postal address
+                first, and the email is how to reply to it. */}
+            {invoice.client.address ? (
+              <Lines text={invoice.client.address} style={styles.partyLine} />
+            ) : null}
             {clientLines.map((line) => (
               <Text key={line} style={styles.partyLine}>
                 {line}
@@ -634,7 +697,7 @@ export function InvoiceDocument({
             {invoice.daysOverdue > 0 ? (
               <View style={styles.factRow}>
                 <Text style={styles.factLabel}>Overdue by</Text>
-                <Text style={[styles.factValue, { color: STATUS_PRINT.overdue!.fg }]}>
+                <Text style={[styles.factValue, { color: STATUS_PRINT.overdue.fg }]}>
                   {invoice.daysOverdue} {invoice.daysOverdue === 1 ? 'day' : 'days'}
                 </Text>
               </View>
@@ -715,12 +778,12 @@ export async function renderInvoicePdf(invoiceId: string): Promise<Buffer> {
   if (!invoice) throw new InvoiceNotFoundError(invoiceId);
 
   /*
-   * Called, not mounted as JSX. `renderToBuffer` is typed to take a `Document`
+   * Called, not mounted as JSX. The renderer is typed to take a `Document`
    * element; `<InvoiceDocument />` is typed by its own props, so JSX here fails
    * to typecheck even though it renders identically. Invoking the function
    * returns the Document element itself, which is what the renderer wants.
    */
-  return renderToBuffer(InvoiceDocument({ invoice, settings }));
+  return renderDocumentToBuffer(InvoiceDocument({ invoice, settings }));
 }
 
 /** The filename a browser or an email attachment should use. */

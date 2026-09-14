@@ -373,7 +373,7 @@ export type InvoiceDetail = {
   sentAt: Date | null;
   paidAt: Date | null;
   daysOverdue: number;
-  client: { id: string; name: string; email: string | null };
+  client: { id: string; name: string; email: string | null; address: string | null };
   lineItems: InvoiceLine[];
   payments: InvoicePayment[];
   reminders: InvoiceReminder[];
@@ -436,6 +436,7 @@ export const getInvoice = cache(async (id: string): Promise<InvoiceDetail | null
       c.id::text                            as client_id,
       c.name                                as client_name,
       c.email                               as client_email,
+      c.address                             as client_address,
       ${settledMinorExpr}::bigint::text     as paid_minor,
       ${outstandingMinorExpr}::bigint::text as outstanding_minor,
       ${effectiveStatusExpr}                as effective_status,
@@ -572,6 +573,10 @@ export const getInvoice = cache(async (id: string): Promise<InvoiceDetail | null
     client: {
       id: String(row.client_id),
       name: String(row.client_name),
+      address:
+        row.client_address === null || row.client_address === undefined
+          ? null
+          : String(row.client_address),
       email: row.client_email === null ? null : String(row.client_email),
     },
     lineItems,

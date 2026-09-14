@@ -36,6 +36,13 @@
       "when": 1789240149389,
       "tag": "0004_wet_hairball",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789375101951,
+      "tag": "0005_unique_nighthawk",
+      "breakpoints": true
     }
   ]
 }

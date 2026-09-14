@@ -69,6 +69,7 @@ function validate(formData: FormData): Validated {
     name: String(formData.get('name') ?? ''),
     email: String(formData.get('email') ?? '').trim(),
     phone: String(formData.get('phone') ?? ''),
+    address: String(formData.get('address') ?? ''),
     notes: String(formData.get('notes') ?? ''),
   });
 
@@ -89,6 +90,7 @@ function validate(formData: FormData): Validated {
       name: parsed.data.name,
       email: blankToNull(parsed.data.email),
       phone: blankToNull(parsed.data.phone),
+      address: blankToNull(parsed.data.address),
       notes: blankToNull(parsed.data.notes),
     },
   };

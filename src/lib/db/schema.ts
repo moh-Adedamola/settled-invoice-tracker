@@ -12,6 +12,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -94,6 +95,16 @@ export const clients = pgTable(
     name: text('name').notNull(),
     email: text('email'),
     phone: text('phone'),
+    /**
+     * Postal address, as typed, newlines kept.
+     *
+     * Nullable because a client you invoice by email may genuinely have no
+     * address worth printing, and refusing to save one until an address is
+     * invented is how placeholder data reaches an outbound document. The PDF
+     * renders one `<Text>` per line — see `Lines` in `lib/pdf/invoice.tsx`,
+     * where a newline inside a single Text costs the typeface.
+     */
+    address: text('address'),
     /** Provider name -> that provider's customer id, e.g. { stripe: 'cus_123' }. */
     providerCustomerIds: jsonb('provider_customer_ids')
       .$type<Record<string, string>>()
@@ -249,6 +260,62 @@ export const reminders = pgTable(
     // Double-send guard. Claim the slot with an insert BEFORE dispatching:
     // two concurrent cron runs cannot both win, the loser gets a 23505.
     unique('reminders_invoice_sequence_key').on(t.invoiceId, t.sequence),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* sentEmails                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export const emailKindEnum = pgEnum('email_kind', ['receipt', 'reminder']);
+
+/**
+ * Every send attempt, successful or not.
+ *
+ * Without this you cannot tell a reminder that sent from one that failed, and
+ * the ladder's whole behaviour depends on knowing which. A row is written
+ * BEFORE the provider is called and updated after, so a crash mid-flight leaves
+ * evidence rather than silence.
+ *
+ * `recipient` is the INTENDED address, never the demo redirect. The redirect is
+ * a delivery detail of a test environment; the log has to answer "who was this
+ * for", and rewriting it to the developer's inbox would make the log lie about
+ * the business event.
+ */
+export const sentEmails = pgTable(
+  'sent_emails',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: emailKindEnum('kind').notNull(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoices.id, { onDelete: 'cascade' }),
+    /** Null for a reminder — it is about an invoice, not a payment. */
+    paymentId: uuid('payment_id').references(() => payments.id, {
+      onDelete: 'set null',
+    }),
+    recipient: text('recipient').notNull(),
+    /** Resend's id. Null while in flight, and on failure. */
+    providerMessageId: text('provider_message_id'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Null on success. Non-null releases the receipt claim below for a retry. */
+    error: text('error'),
+  },
+  (t) => [
+    /*
+     * One receipt per payment — the claim that makes the dispatcher idempotent.
+     *
+     * PARTIAL on `error is null`, which is what makes a retry possible: a failed
+     * attempt leaves a row carrying an error, that row drops out of the index,
+     * and the next run may claim the slot again. A successful or in-flight row
+     * holds it. Two concurrent runs cannot both insert; the loser takes a 23505
+     * and moves on, exactly as `reminders_invoice_sequence_key` works.
+     */
+    uniqueIndex('sent_emails_receipt_once')
+      .on(t.paymentId)
+      .where(sql`${t.kind} = 'receipt' and ${t.error} is null`),
+    index('sent_emails_invoice_id_idx').on(t.invoiceId),
+    index('sent_emails_sent_at_idx').on(t.sentAt),
   ],
 );
 
@@ -523,4 +590,8 @@ export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type InvoiceStatus = (typeof invoiceStatusEnum.enumValues)[number];
 export type PaymentProvider = (typeof paymentProviderEnum.enumValues)[number];
 export type PaymentStatus = (typeof paymentStatusEnum.enumValues)[number];
+export type SentEmail = typeof sentEmails.$inferSelect;
+export type NewSentEmail = typeof sentEmails.$inferInsert;
+export type EmailKind = (typeof emailKindEnum.enumValues)[number];
+
 export type ReminderChannel = (typeof reminderChannelEnum.enumValues)[number];

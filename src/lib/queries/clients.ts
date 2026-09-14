@@ -64,6 +64,8 @@ export type ClientListRow = {
   name: string;
   email: string | null;
   phone: string | null;
+  /** As typed, newlines kept — printed on the invoice PDF. */
+  address: string | null;
   archivedAt: Date | null;
   invoiceCount: number;
   /** Per currency, so nothing is added together that should not be. */
@@ -195,6 +197,7 @@ const clientAggregateCte = sql`
       c.name,
       c.email,
       c.phone,
+      c.address,
       c.archived_at,
       coalesce(sum(v.invoice_count), 0)::int             as invoice_count,
       coalesce(bool_or(v.unconvertible), false)          as base_incomplete,
@@ -218,7 +221,7 @@ const clientAggregateCte = sql`
       ) as totals
     from clients c
     left join by_currency v on v.client_id = c.id
-    group by c.id, c.name, c.email, c.phone, c.archived_at
+    group by c.id, c.name, c.email, c.phone, c.address, c.archived_at
   )`;
 
 function mapRow(row: Record<string, unknown>): ClientListRow {
@@ -236,6 +239,7 @@ function mapRow(row: Record<string, unknown>): ClientListRow {
     name: String(row.name),
     email: row.email === null ? null : String(row.email),
     phone: row.phone === null ? null : String(row.phone),
+    address: row.address === null || row.address === undefined ? null : String(row.address),
     archivedAt: row.archived_at ? new Date(String(row.archived_at)) : null,
     invoiceCount: Number(row.invoice_count ?? 0),
     totals,
@@ -282,7 +286,7 @@ export async function listClients(
   const result = await db.execute(sql`
     with ${clientAggregateCte}
     select
-      a.id::text as id, a.name, a.email, a.phone, a.archived_at,
+      a.id::text as id, a.name, a.email, a.phone, a.address, a.archived_at,
       a.invoice_count, a.base_incomplete,
       a.base_invoiced_minor::text    as base_invoiced_minor,
       a.base_paid_minor::text        as base_paid_minor,
@@ -371,7 +375,7 @@ export const getClient = cache(async (id: string): Promise<ClientDetail | null> 
   const result = await db.execute(sql`
     with ${clientAggregateCte}
     select
-      a.id::text as id, a.name, a.email, a.phone, a.archived_at,
+      a.id::text as id, a.name, a.email, a.phone, a.address, a.archived_at,
       a.invoice_count, a.base_incomplete,
       a.base_invoiced_minor::text    as base_invoiced_minor,
       a.base_paid_minor::text        as base_paid_minor,

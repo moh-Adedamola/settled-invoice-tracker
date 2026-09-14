@@ -23,6 +23,7 @@ export type ClientFormInitial = {
   name: string;
   email: string;
   phone: string;
+  address: string;
   notes: string;
 };
 
@@ -108,6 +109,24 @@ export function ClientForm({
             />
           </Field>
         </div>
+
+        <Field
+          label="Address"
+          htmlFor={`${formId}-address`}
+          errors={errorsFor('address')}
+          hint="Optional — printed on the invoice PDF as typed, so line breaks are kept."
+        >
+          <textarea
+            id={`${formId}-address`}
+            name="address"
+            rows={3}
+            value={values.address}
+            onChange={(e) => set('address', e.target.value)}
+            autoComplete="street-address"
+            placeholder="14 Admiralty Way&#10;Lekki Phase 1, Lagos"
+            className="w-full rounded-sm border border-line-strong bg-transparent px-2.5 py-2 text-small text-ink placeholder:text-ink-muted"
+          />
+        </Field>
 
         <Field label="Notes" htmlFor={`${formId}-notes`} errors={errorsFor('notes')} hint="Optional.">
           <textarea

@@ -52,6 +52,7 @@ export default async function EditClientPage({
             name: client.name,
             email: client.email ?? '',
             phone: client.phone ?? '',
+            address: client.address ?? '',
             notes: client.notes ?? '',
           }}
         />

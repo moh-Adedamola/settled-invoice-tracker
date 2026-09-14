@@ -118,6 +118,16 @@ export default async function ClientDetailPage({
               <span className="text-ink-muted">Not on file</span>
             )}
           </Fact>
+
+          {/* Printed on the invoice PDF, so it is shown as it will print —
+              line breaks preserved rather than collapsed into one line. */}
+          <Fact label="Address">
+            {client.address ? (
+              <span className="whitespace-pre-line">{client.address}</span>
+            ) : (
+              <span className="text-ink-muted">Not on file</span>
+            )}
+          </Fact>
           <Fact label="Client since">
             <span className="money">{formatDateFull(client.createdAt)}</span>
           </Fact>

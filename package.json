@@ -14,7 +14,8 @@
     "set-password": "tsx --conditions=react-server --env-file=.env.local scripts/set-password.ts",
     "test-webhook": "tsx --conditions=react-server --env-file=.env.local scripts/test-webhook.ts",
     "test-drain": "tsx --conditions=react-server --env-file=.env.local scripts/test-drain.ts",
-    "test-reset": "tsx --conditions=react-server --env-file=.env.local scripts/test-reset.ts"
+    "test-reset": "tsx --conditions=react-server --env-file=.env.local scripts/test-reset.ts",
+    "check:pdf": "esbuild scripts/check-pdf-text.tsx --bundle --platform=node --format=esm --target=node22 --conditions=react-server --alias:@=./src --external:@react-pdf/renderer --external:@neondatabase/serverless --external:react --outfile=node_modules/.cache/settled/check-pdf-text.mjs --log-level=warning && node --env-file-if-exists=.env.local node_modules/.cache/settled/check-pdf-text.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -40,6 +41,7 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
