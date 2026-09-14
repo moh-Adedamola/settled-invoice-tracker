@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { eq, lte } from 'drizzle-orm';
+import { and, eq, lte, ne } from 'drizzle-orm';
 
 import { db, sessions, users } from '@/lib/db';
 import type { UserRole } from '@/lib/db';
@@ -176,6 +176,32 @@ export async function invalidateSession(token: string): Promise<void> {
 /** Sign out everywhere — password change, lost device, revoked access. */
 export async function invalidateAllUserSessions(userId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.userId, userId));
+}
+
+/**
+ * Sign out everywhere EXCEPT here — the password-change case.
+ *
+ * A password change has to end every other session, because "someone else is
+ * signed in as me" is the exact thing being fixed. Ending this one too would
+ * log the user out at the instant they successfully secured their account,
+ * which reads as the change having failed and invites them to try again.
+ *
+ * Keyed on the session id from `validateSession`, not on the token: the token
+ * lives in a cookie this function has no business reading.
+ *
+ * Returns how many were ended, so the UI can say "3 other sessions" rather than
+ * a vague reassurance.
+ */
+export async function invalidateOtherUserSessions(
+  userId: string,
+  keepSessionId: string,
+): Promise<number> {
+  const removed = await db
+    .delete(sessions)
+    .where(and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)))
+    .returning({ id: sessions.id });
+
+  return removed.length;
 }
 
 /**

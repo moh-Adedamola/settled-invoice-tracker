@@ -750,6 +750,29 @@ The 3px left rule is the scannable element and is **not optional** — see §3.4
 it the badge column collapses to ΔE 2.0 (dark) / 0.3 (light). With the marker, it is
 what makes "show me everything overdue" a glance rather than a read.
 
+### Presence marks
+
+A yes/no fact about configuration, not about a record's state — used by the gateway panel
+in Settings for "adapter registered" and "key present".
+
+Built like a §3.4 badge, but from the `paid` / `void` pair rather than a green/red one.
+**Absent is a state, not an error.** Most installs will legitimately never wire up two of
+the three gateways, and painting that in `failed` would put a permanent alarm on a page
+where nothing is wrong. The `void` treatment says "not in play", which is what it means.
+The explanation of what absence *costs* ("every webhook from this provider will fail
+verification") goes in a `title`, so the row stays scannable.
+
+**Never render a credential, not even masked.** A masked key is not a redaction, it is a
+confirmation: `sk_live_••••4f2a` tells a reader the account is live rather than test, and
+the visible characters are enough to match against a key seen elsewhere. The panel answers
+"will a webhook verify today", and present/absent answers that completely. What it shows
+instead is the environment variable's NAME — the actionable half, and not a secret.
+
+The check is `typeof value === 'string' && value.trim() !== ''`, not `!== undefined`: an
+env var set to an empty string is the most common way a deploy looks configured and is not.
+Verified by comparing every environment secret of 8+ characters against the rendered HTML —
+no value appears, and nothing renders as a run of bullets.
+
 ### Row-state marks
 
 Two marks say something about a row that is not one of the seven status states, so they are

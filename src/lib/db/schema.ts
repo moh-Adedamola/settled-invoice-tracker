@@ -2,6 +2,7 @@ import { relations, sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -428,6 +429,95 @@ export type NewFxRate = typeof fxRates.$inferInsert;
 
 export type LoginAttempt = typeof loginAttempts.$inferSelect;
 export type NewLoginAttempt = typeof loginAttempts.$inferInsert;
+
+/* -------------------------------------------------------------------------- */
+/* appSettings                                                                */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * One row, typed columns — not a key-value bag.
+ *
+ * The key-value shape (`settings(key text primary key, value jsonb)`) buys one
+ * thing: a new setting without a migration. It costs the three things this
+ * codebase has consistently chosen to keep.
+ *
+ *  1. INVARIANTS LIVE IN THE DATABASE HERE. The line-item trigger, the
+ *     `(provider, provider_payment_id)` unique, the partial index on
+ *     `archived_at` — every rule that matters is enforced where every writer
+ *     meets it, not in one code path. "The reminder ladder ascends" is exactly
+ *     that kind of rule, and `check` below enforces it for a future cron job, a
+ *     psql session and the settings form alike. A jsonb blob cannot be checked.
+ *  2. DEFAULTS MEAN NO SEEDING STEP. Every column is NOT NULL with a default,
+ *     so a fresh database has working settings the moment the migration runs.
+ *     Key-value has no such thing: every read must handle "row missing", and a
+ *     mistyped key reads as absent rather than failing.
+ *  3. TYPES SURVIVE THE ROUND TRIP. `reminderDay1` is an integer in Postgres,
+ *     in Drizzle and in TypeScript. Out of jsonb everything arrives `unknown`
+ *     and is re-validated by hand at each call site.
+ *
+ * The migration cost is real but small: settings change a few times a year, and
+ * `drizzle-kit generate` is already the workflow for every other change.
+ *
+ * The ladder is three fixed steps rather than an array because ascending-and-
+ * distinct is expressible as a CHECK over three columns and is NOT expressible
+ * over an array — Postgres forbids subqueries in a constraint, so `unnest` and
+ * `array_agg` are unavailable. Three columns put the rule in the database; an
+ * array would have left it a convention that app code is trusted to keep. A
+ * fourth nudge is a migration, which is the same cost as any other change here.
+ */
+export const appSettings = pgTable(
+  'app_settings',
+  {
+    /*
+     * The singleton latch. A boolean primary key with a CHECK that it is true
+     * makes a second row impossible at the database level rather than by
+     * everyone remembering to write `where id = 1`.
+     */
+    id: boolean('id').primaryKey().default(true).notNull(),
+
+    /* --- business details: what appears on an invoice PDF and in receipts --- */
+    businessName: text('business_name').notNull().default('Settled'),
+    businessAddress: text('business_address').notNull().default(''),
+    businessEmail: text('business_email').notNull().default(''),
+    businessPhone: text('business_phone').notNull().default(''),
+
+    /* --- the reminder ladder ------------------------------------------------ */
+    /** Master switch. Off means no automated chasing at all, whatever the days say. */
+    remindersEnabled: boolean('reminders_enabled').notNull().default(true),
+    /** Days past due for each nudge. Ascending and distinct, enforced below. */
+    reminderDay1: integer('reminder_day_1').notNull().default(3),
+    reminderDay2: integer('reminder_day_2').notNull().default(7),
+    reminderDay3: integer('reminder_day_3').notNull().default(14),
+
+    /* --- notification targets ----------------------------------------------- */
+    /*
+     * The DESTINATION only. The bot token stays in the environment: a token is a
+     * credential, and a credential in a table is a credential in every backup,
+     * every replica and every screenshot of this page. A chat id identifies
+     * where a message goes and grants nothing on its own.
+     */
+    telegramChatId: text('telegram_chat_id').notNull().default(''),
+    alertOnPaymentSuccess: boolean('alert_on_payment_success').notNull().default(false),
+    alertOnPaymentFailure: boolean('alert_on_payment_failure').notNull().default(true),
+
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('app_settings_singleton', sql`${t.id}`),
+    // Ascending and distinct in one expression: strict `<` gives both.
+    check(
+      'app_settings_reminder_ladder_ascending',
+      sql`${t.reminderDay1} < ${t.reminderDay2} and ${t.reminderDay2} < ${t.reminderDay3}`,
+    ),
+    // A nudge before the invoice is due is not a reminder, it is a threat.
+    check('app_settings_reminder_days_positive', sql`${t.reminderDay1} >= 1`),
+    // Past a year the ladder has stopped being a collections process.
+    check('app_settings_reminder_days_bounded', sql`${t.reminderDay3} <= 365`),
+  ],
+);
+
+export type AppSettings = typeof appSettings.$inferSelect;
+export type NewAppSettings = typeof appSettings.$inferInsert;
 
 export type UserRole = (typeof userRoleEnum.enumValues)[number];
 export type InvoiceStatus = (typeof invoiceStatusEnum.enumValues)[number];

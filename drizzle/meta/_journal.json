@@ -29,6 +29,13 @@
       "when": 1789024865164,
       "tag": "0003_talented_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789240149389,
+      "tag": "0004_wet_hairball",
+      "breakpoints": true
     }
   ]
 }

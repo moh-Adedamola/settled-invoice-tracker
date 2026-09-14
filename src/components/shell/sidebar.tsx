@@ -76,7 +76,7 @@ const NAV: NavItem[] = [
   { href: '/invoices', label: 'Invoices', Icon: FileText, enabled: true, privileged: true },
   { href: '/payments', label: 'Payments', Icon: Wallet, enabled: true, privileged: true },
   { href: '/clients', label: 'Clients', Icon: Users, enabled: true, privileged: true },
-  { href: '/settings', label: 'Settings', Icon: Settings, enabled: false, privileged: true },
+  { href: '/settings', label: 'Settings', Icon: Settings, enabled: true, privileged: true },
 ];
 
 export function Sidebar({
