@@ -76,6 +76,34 @@ export const KIND_TO_PAYMENT_STATUS: Record<NormalizedEventKind, PaymentStatus> 
   'payment.refunded': 'refunded',
 };
 
+/**
+ * One transaction seen by a reconciliation sweep.
+ *
+ * Carries the normalised event AND the provider's own object, because the two
+ * have different jobs. The sweep decides what to do from `event`; the row it
+ * writes stores `payload`, so the drain re-normalises from provider data
+ * exactly as it would for a webhook rather than from something we synthesised.
+ * Storing a normalised object instead would make the queue hold two different
+ * kinds of record and quietly fork the code path this design exists to keep
+ * single.
+ *
+ * `payload` must therefore be shaped like the provider's webhook body, not
+ * like its list-endpoint row.
+ */
+export type SweptTransaction = {
+  event: NormalizedEvent;
+  payload: Record<string, unknown>;
+};
+
+/** What a sweep did, for the summary the operator actually reads. */
+export type SweepPage = {
+  transactions: SweptTransaction[];
+  /** Requests actually issued, so the caller can report API cost. */
+  requests: number;
+  /** Provider rows seen, including ones no adapter cared to normalise. */
+  seen: number;
+};
+
 export interface GatewayAdapter {
   id: PaymentProvider;
 
@@ -110,4 +138,25 @@ export interface GatewayAdapter {
    * a retry loop.
    */
   normalize(payload: unknown): NormalizedEvent | null;
+
+  /**
+   * Every transaction the provider recorded in a window — the gap-fill.
+   *
+   * Defined HERE rather than on the Paystack class so Stripe and Flutterwave
+   * cannot land without it. An adapter that can take webhooks but cannot be
+   * swept is an adapter whose payments go missing the first time a delivery is
+   * lost, and that failure is invisible until someone reconciles a bank
+   * statement by hand.
+   *
+   * Contract:
+   *  - `since` and `until` are inclusive bounds on when the payment OCCURRED,
+   *    not on when we heard about it.
+   *  - Must page to exhaustion. A partial sweep that reports success is worse
+   *    than no sweep, because it looks like proof there was no gap.
+   *  - Must back off rather than hammer, and must not throw for a rate limit.
+   *  - Must return the provider payload in WEBHOOK shape (see `SweptTransaction`).
+   *  - Throws only for a genuine failure — bad credentials, a persistent 5xx.
+   *    The caller records that against the provider and carries on to the next.
+   */
+  fetchTransactions(since: Date, until: Date): Promise<SweepPage>;
 }

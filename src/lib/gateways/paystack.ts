@@ -2,7 +2,13 @@ import 'server-only';
 
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
-import type { GatewayAdapter, NormalizedEvent, NormalizedEventKind } from './types';
+import type {
+  GatewayAdapter,
+  NormalizedEvent,
+  NormalizedEventKind,
+  SweepPage,
+  SweptTransaction,
+} from './types';
 
 const SIGNATURE_HEADER = 'x-paystack-signature';
 
@@ -166,6 +172,217 @@ function extractInvoiceRef(data: PaystackData): string | undefined {
   return undefined;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Reconciliation sweep                                                       */
+/* -------------------------------------------------------------------------- */
+
+const API_BASE = 'https://api.paystack.co';
+
+/*
+ * Paystack's pagination and rate limits, MEASURED rather than assumed.
+ *
+ * Their docs describe the failure ("Sending multiple requests at short
+ * intervals would lead to a 429 (Too many requests) error") and advise waiting
+ * "a few minutes" before retrying, but they publish no number. So these come
+ * from the live API on 2026-09-14:
+ *
+ *   x-ratelimit-limit: 1000        sent on every response
+ *   x-ratelimit-remaining: 999     decrements per request
+ *
+ * The budget is read off each response rather than hardcoded, because a limit
+ * we invented would go stale silently and a limit we read cannot.
+ *
+ * `perPage` is CLAMPED TO 100, and silently: asking for 200 or 1000 returns
+ * `meta.perPage: 100` with a 200 status and no warning. That matters more than
+ * it looks. A caller that asked for 1000 and then paged by its own requested
+ * size would compute one page where there were ten, skip 90% of the window, and
+ * report success — a reconciliation that proves there was no gap by not looking.
+ * Page count therefore comes from `meta.pageCount`, the server's own answer, and
+ * never from arithmetic on a number we chose.
+ */
+const MAX_PER_PAGE = 100;
+
+/** Stop rather than loop forever if `pageCount` is absurd or keeps growing. */
+const MAX_PAGES = 100;
+
+/** Leave the integration headroom; a sweep is never the urgent caller. */
+const RESERVE_REQUESTS = 50;
+
+/** Pause between pages. Deliberately unhurried — nightly work, not interactive. */
+const PAGE_DELAY_MS = 250;
+
+/** 429 backoff when the response carries no Retry-After, in ms. */
+const BACKOFF_MS = [2_000, 8_000, 30_000];
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+type PaystackListMeta = {
+  total?: unknown;
+  page?: unknown;
+  pageCount?: unknown;
+  perPage?: unknown;
+};
+
+type PaystackListResponse = {
+  status?: unknown;
+  message?: unknown;
+  data?: unknown;
+  meta?: PaystackListMeta;
+};
+
+const asInt = (v: unknown): number | undefined => {
+  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/**
+ * Paystack transaction status to the webhook event name it would have arrived
+ * as.
+ *
+ * This mapping is what lets a swept row rejoin the webhook path: the synthesised
+ * payload is `{ event, data }`, the same shape the webhook posts, so `normalize`
+ * and `extractEventId` run on it unmodified.
+ *
+ * Only terminal money outcomes are swept. `abandoned`, `ongoing`, `pending`,
+ * `queued` and `processing` are states a transaction passes THROUGH, and
+ * sweeping them would write payment rows for checkouts a customer walked away
+ * from. `reversed` is deliberately absent too: Paystack's refund webhook carries
+ * a refund object with its own shape, and inventing a `refund.processed` body
+ * out of a transaction row would push a payload through `normalize` that no real
+ * refund resembles.
+ */
+const STATUS_EVENTS: Record<string, string> = {
+  success: 'charge.success',
+  failed: 'charge.failed',
+};
+
+/**
+ * One page of transactions, with 429 handling.
+ *
+ * Returns the parsed body plus the remaining rate-limit budget, so the caller
+ * can slow down before Paystack has to tell it to.
+ */
+async function fetchPage(
+  secret: string,
+  params: URLSearchParams,
+): Promise<{ body: PaystackListResponse; remaining?: number }> {
+  let attempt = 0;
+
+  for (;;) {
+    const response = await fetch(`${API_BASE}/transaction?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${secret}` },
+      // A sweep that hangs holds the whole cron run open.
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (response.status === 429) {
+      if (attempt >= BACKOFF_MS.length) {
+        throw new Error('Paystack rate limit: still 429 after three backoffs');
+      }
+      /*
+       * Honour Retry-After when present. Paystack's own advice is to wait "a few
+       * minutes", so this ladder ends at 30s and then gives up rather than
+       * dressing a tight retry loop up as politeness. Stopping costs nothing:
+       * the window is re-swept on the next run, and a 48h window over a nightly
+       * schedule means every transaction gets at least two chances.
+       */
+      const header = response.headers.get('retry-after');
+      const retryAfter = header ? Number(header) : NaN;
+      const waitMs = Number.isFinite(retryAfter)
+        ? Math.min(retryAfter * 1000, 60_000)
+        : BACKOFF_MS[attempt]!;
+      attempt += 1;
+      await sleep(waitMs);
+      continue;
+    }
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(
+        `Paystack list transactions failed: HTTP ${response.status} ${detail.slice(0, 200)}`,
+      );
+    }
+
+    const body = (await response.json()) as PaystackListResponse;
+    if (body.status !== true) {
+      throw new Error(
+        `Paystack list transactions refused: ${String(body.message ?? 'no message')}`,
+      );
+    }
+
+    return { body, remaining: asInt(response.headers.get('x-ratelimit-remaining')) };
+  }
+}
+
+async function fetchTransactions(since: Date, until: Date): Promise<SweepPage> {
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret) throw new Error('PAYSTACK_SECRET_KEY is not set');
+
+  const transactions: SweptTransaction[] = [];
+  const seenIds = new Set<string>();
+  let requests = 0;
+  let seen = 0;
+  let page = 1;
+  let pageCount = 1;
+
+  while (page <= pageCount && page <= MAX_PAGES) {
+    const params = new URLSearchParams({
+      perPage: String(MAX_PER_PAGE),
+      page: String(page),
+      from: since.toISOString(),
+      to: until.toISOString(),
+    });
+
+    const { body, remaining } = await fetchPage(secret, params);
+    requests += 1;
+
+    /*
+     * `pageCount` is re-read on every page rather than fixed from the first.
+     * Transactions keep arriving while a sweep runs, so the total can grow
+     * underneath it; trusting the first answer would stop early on exactly the
+     * busy night when a gap is most likely.
+     */
+    pageCount = asInt(body.meta?.pageCount) ?? 1;
+
+    const rows = Array.isArray(body.data) ? body.data : [];
+    seen += rows.length;
+
+    for (const row of rows) {
+      const data = asRecord(row);
+      if (!data) continue;
+
+      const status = asString(data.status)?.toLowerCase();
+      const eventName = status ? STATUS_EVENTS[status] : undefined;
+      if (!eventName) continue;
+
+      // Shaped exactly like a webhook body, so the row the sweep stores is one
+      // the drain already knows how to read.
+      const payload = { event: eventName, data } as Record<string, unknown>;
+
+      const event = paystackAdapter.normalize(payload);
+      if (!event) continue;
+
+      // A busy window can return the same transaction on two pages if rows
+      // shift between requests. Cheap to guard, confusing to debug.
+      if (seenIds.has(event.providerEventId)) continue;
+      seenIds.add(event.providerEventId);
+
+      transactions.push({ event, payload });
+    }
+
+    if (remaining !== undefined && remaining <= RESERVE_REQUESTS) {
+      throw new Error(
+        `Paystack rate-limit budget nearly spent (${remaining} left); stopped sweep early`,
+      );
+    }
+
+    page += 1;
+    if (page <= pageCount) await sleep(PAGE_DELAY_MS);
+  }
+
+  return { transactions, requests, seen };
+}
+
 export const paystackAdapter: GatewayAdapter = {
   id: 'paystack',
 
@@ -304,4 +521,6 @@ export const paystackAdapter: GatewayAdapter = {
       method,
     } satisfies NormalizedEvent;
   },
+
+  fetchTransactions,
 };

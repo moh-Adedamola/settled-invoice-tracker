@@ -1,0 +1,2 @@
+CREATE TYPE "public"."webhook_event_source" AS ENUM('webhook', 'reconciliation');--> statement-breakpoint
+ALTER TABLE "webhook_events" ADD COLUMN "source" "webhook_event_source" DEFAULT 'webhook' NOT NULL;

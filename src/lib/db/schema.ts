@@ -47,6 +47,15 @@ export const paymentStatusEnum = pgEnum('payment_status', [
 
 export const reminderChannelEnum = pgEnum('reminder_channel', ['email', 'telegram']);
 
+/**
+ * How an event reached us. Audit metadata, NOT part of the event's identity —
+ * see the note on `webhookEvents.source`.
+ */
+export const eventSourceEnum = pgEnum('webhook_event_source', [
+  'webhook',
+  'reconciliation',
+]);
+
 /* -------------------------------------------------------------------------- */
 /* users                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -228,6 +237,36 @@ export const webhookEvents = pgTable(
     attempts: integer('attempts').notNull().default(0),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
     processError: text('process_error'),
+    /**
+     * Whether this arrived by webhook or was found by the nightly sweep.
+     *
+     * ## Why this is a column and not a prefix on the event id
+     *
+     * The obvious way to mark a swept event is to prefix its id —
+     * `recon:charge.success:6558198577`. It is the wrong place, and the reason
+     * generalises: putting provenance in an identity key breaks deduplication.
+     *
+     * A prefixed id is a DIFFERENT id, so the sweep's row and the webhook's row
+     * for one transaction both survive `onConflictDoNothing` and both get
+     * processed. The second one to reach the drain tries to insert a payment
+     * that already exists, takes a 23505 on
+     * `payments_provider_payment_id_key`, and — because a unique violation
+     * surfaces as a throw — is recorded as a FAILURE. It then retries five
+     * times across the backoff ladder, lands in dead-letter, and fires the
+     * operational Telegram alert. A webhook arriving late is an ordinary,
+     * expected race; it must not page anyone.
+     *
+     * Reconciliation therefore derives the SAME `provider_event_id` the webhook
+     * would (`fetchTransactions` runs the adapter's own `normalize`, so the two
+     * cannot drift), and whichever arrives second is collapsed by the existing
+     * unique constraint exactly as a provider's retry is. Nothing is lost when
+     * the sweep wins: both rows carry the same provider payload, and the drain
+     * reads the payload, not the row.
+     *
+     * Provenance survives here, where it answers "how did we learn about this"
+     * without also answering "which event is this".
+     */
+    source: eventSourceEnum('source').notNull().default('webhook'),
   },
   (t) => [
     // Providers retry until they get a 200, so the same event id arrives more
@@ -676,6 +715,7 @@ export type PaymentStatus = (typeof paymentStatusEnum.enumValues)[number];
 export type SentEmail = typeof sentEmails.$inferSelect;
 export type NewSentEmail = typeof sentEmails.$inferInsert;
 export type EmailKind = (typeof emailKindEnum.enumValues)[number];
+export type EventSource = (typeof eventSourceEnum.enumValues)[number];
 
 export type TelegramAlert = typeof telegramAlerts.$inferSelect;
 export type NewTelegramAlert = typeof telegramAlerts.$inferInsert;

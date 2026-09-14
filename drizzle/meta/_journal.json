@@ -50,6 +50,13 @@
       "when": 1789391259428,
       "tag": "0006_known_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789407453905,
+      "tag": "0007_giant_angel",
+      "breakpoints": true
     }
   ]
 }

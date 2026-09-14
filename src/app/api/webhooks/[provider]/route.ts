@@ -75,6 +75,7 @@ export async function POST(
         providerEventId: `unverified:${digest}`,
         payload: safePayload(rawBody),
         signatureOk: false,
+        source: 'webhook',
       })
       .onConflictDoNothing();
 
@@ -95,6 +96,7 @@ export async function POST(
         providerEventId: `unparseable:${digest}`,
         payload: safePayload(rawBody),
         signatureOk: true,
+        source: 'webhook',
       })
       .onConflictDoNothing();
 
@@ -116,6 +118,7 @@ export async function POST(
       providerEventId,
       payload: payload as Record<string, unknown>,
       signatureOk: true,
+      source: 'webhook',
     })
     .onConflictDoNothing();
 
