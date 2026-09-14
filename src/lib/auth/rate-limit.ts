@@ -60,7 +60,7 @@ export async function clearAttempts(identifier: string): Promise<void> {
  *
  * **A caveat worth being honest about.** Keying on email does not prevent an
  * attacker locking out a known user; it is the mechanism by which they can.
- * Anyone who knows `accounts@molekschools.ng` can burn five requests and deny
+ * Anyone who knows `accounts@molekschools.invalid` can burn five requests and deny
  * that account for 15 minutes, from any IP. Separate counters buy something
  * narrower but still real: the legitimate user is not collateral damage of an
  * attack aimed at a *different* account from the same network, and an attacker

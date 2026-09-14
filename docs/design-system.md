@@ -768,6 +768,16 @@ the visible characters are enough to match against a key seen elsewhere. The pan
 "will a webhook verify today", and present/absent answers that completely. What it shows
 instead is the environment variable's NAME — the actionable half, and not a secret.
 
+`PresenceMark` in `components/ui/presence-mark.tsx` is the one implementation. It lived
+inside the settings page until the Alerts panel needed the same mark for
+`TELEGRAM_BOT_TOKEN`; a pattern this section names should not be re-typed per caller. It is
+hook-free, so a server panel and a client form can both use it.
+
+Use it wherever a panel's own fields are insufficient without an environment fact. The
+Alerts panel is the case that proved the point: chat id and toggles can all be filled in
+correctly and still send nothing, because the dispatcher skips silently when the token is
+missing — right for a cron, useless for a person reading the form.
+
 The check is `typeof value === 'string' && value.trim() !== ''`, not `!== undefined`: an
 env var set to an empty string is the most common way a deploy looks configured and is not.
 Verified by comparing every environment secret of 8+ characters against the rendered HTML —
@@ -1512,7 +1522,9 @@ entrances are removed outright.
 Not a visual rule, but it governs every figure in every screenshot, so it belongs with
 them. `buildDemoDataset()` is reproducible: the same fourteen clients, the same 59
 invoices with the same numbers, amounts, currencies and line-item splits, the same payments
-and reminders, and the same row ids — on every reset, forever. Only the dates move.
+and reminders, and the same row ids — on every reset, forever. Only the dates move. (Ids
+have moved exactly once, on 2026-09-14, when the seeded email domains became `.invalid`;
+see the note below, since ids derive from the email.)
 
 Two things track the calendar and are not composition drifting: a month name rendered into
 a description (`Monthly SEO retainer, June` reads `…, April` when that invoice slides to
@@ -1520,6 +1532,35 @@ April — same id, same client, same amount) and `fx_rates` ids, which are keyed
 rate's date because that table is a time series. Verified across 2026-09-12, 2027-01-01,
 2028-02-29 and 2030-07-04: ids, numbers, clients, currencies, amounts, statuses, payment
 references and rate values identical; every date different.
+
+**Every seeded client is at a `.invalid` domain, and the ids changed once because of it.**
+RFC 2606 reserves `.invalid` permanently: no resolver will ever answer for it and nobody
+can register one, so a demo receipt or chasing letter that escapes every other guard is
+undeliverable by construction rather than by configuration.
+
+The addresses were plausible real TLDs until **2026-09-14**. That was not a theoretical
+exposure — of the fourteen, `harborandfinch.com` was a registered domain with live MX
+records pointed at Namecheap email forwarding, so `billing@harborandfinch.com` reached a
+real person's mailbox. `cadencehealth.co.uk` resolved with an MX, and
+`northbankstudios.co.uk` had an A record and no MX, which is still deliverable through the
+RFC 5321 implicit-MX fallback. The receipt drain had selected 26 demo payments and the
+reminder ladder sat flush against its next rung with zero headroom; only
+`DEMO_EMAIL_REDIRECT` — a Resend test-domain workaround, not a safety mechanism — stood in
+the way. Company names and local parts were kept exactly; only the TLD moved.
+
+**This reset is the one deliberate exception to the stable-id guarantee above.** Client ids
+are `uuidFor('client:' + email)`, so changing the domain changed all fourteen, and every id
+keyed off them moved with it — invoices, line items, payments, reminders. It is a one-time
+churn on **2026-09-14**, not a recurring one: the purge deletes by `is_demo` rather than by
+id, so the next reset simply replaced the rows. **Ids have been stable from that reset
+onward and a future difference is a bug, not this.** If you are bisecting a screenshot or a
+fixture that disagrees about ids across that date, this is why.
+
+It also closed the last path by which a seeded address could become permanently reachable.
+`resolveClient` matches incoming webhooks on email and `promoteIfNeeded` flips a matched
+demo client live — after which it passes the `is_demo` filters *and* survives the nightly
+purge. No real gateway event can carry a `.invalid` address, so that path is now shut at
+the source rather than defended against.
 
 **The dataset has to exercise the design system, not just fill it.** A token that never
 renders is a token nobody has checked. Two shapes are seeded deliberately for that reason:

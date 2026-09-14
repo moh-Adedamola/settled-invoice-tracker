@@ -4,6 +4,8 @@ import { requireAdmin } from '@/lib/auth/guard';
 import { getGatewayStatus, getSettings } from '@/lib/queries/settings';
 import { formatDateTime } from '@/lib/format';
 import { PageHeader } from '@/components/shell/page-header';
+import { PresenceMark } from '@/components/ui/presence-mark';
+import { telegramConfigured } from '@/lib/notify/telegram';
 import {
   BusinessDetailsForm,
   NotificationSettingsForm,
@@ -69,6 +71,7 @@ export default async function SettingsPage() {
         />
 
         <NotificationSettingsForm
+          botTokenPresent={telegramConfigured()}
           initial={{
             telegramChatId: settings.telegramChatId,
             alertOnPaymentSuccess: settings.alertOnPaymentSuccess,
@@ -147,13 +150,13 @@ function GatewayPanel({
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <Mark
+              <PresenceMark
                 ok={gateway.registered}
                 yes="Adapter registered"
                 no="No adapter"
                 explainNo="Webhooks for this provider are refused with a 404."
               />
-              <Mark
+              <PresenceMark
                 ok={gateway.credentialPresent}
                 yes="Key present"
                 no="Key absent"
@@ -167,35 +170,4 @@ function GatewayPanel({
   );
 }
 
-/**
- * §3.3: the marker travels with the colour, so this reads without it. `paid`
- * and `void` rather than a green/red pair — absent is not an error, it is a
- * state, and most installs will legitimately have gateways they never wired up.
- */
-function Mark({
-  ok,
-  yes,
-  no,
-  explainNo,
-}: {
-  ok: boolean;
-  yes: string;
-  no: string;
-  explainNo: string;
-}) {
-  return (
-    <span
-      title={ok ? undefined : explainNo}
-      className={`inline-flex items-center gap-1 rounded-xs border border-l-[3px] px-1.5 py-0.5 text-micro font-medium uppercase whitespace-nowrap ${
-        ok
-          ? 'border-paid-line border-l-paid bg-paid-bg text-paid'
-          : 'border-void-line border-l-void bg-void-bg text-void'
-      }`}
-    >
-      <span aria-hidden="true" className="text-[10px] leading-none">
-        {ok ? '●' : '—'}
-      </span>
-      {ok ? yes : no}
-    </span>
-  );
-}
+

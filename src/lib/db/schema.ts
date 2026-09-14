@@ -320,6 +320,89 @@ export const sentEmails = pgTable(
 );
 
 /* -------------------------------------------------------------------------- */
+/* telegramAlerts                                                             */
+/* -------------------------------------------------------------------------- */
+
+export const telegramAlertKindEnum = pgEnum('telegram_alert_kind', [
+  'payment_succeeded',
+  'payment_failed',
+  'processing_failure',
+]);
+
+/**
+ * Every Telegram alert attempt, and the claim that stops it being sent twice.
+ *
+ * ## Why this is not a third `email_kind` on `sent_emails`
+ *
+ * It was the first thing tried, and the columns refuse it:
+ *
+ *  - `sent_emails.invoice_id` is NOT NULL, and two of the three alerts have no
+ *    invoice. An unmatched payment has none by definition, and a dead-lettered
+ *    webhook event may never have resolved to one. Relaxing that column to fit
+ *    Telegram would drop a constraint that is correct for every email, since a
+ *    receipt or a reminder always concerns exactly one invoice.
+ *  - The claim keys differ. Receipts claim by `payment_id`; a processing-failure
+ *    alert has to claim by webhook event id, which `sent_emails` has no reason
+ *    to carry.
+ *  - `recipient` means an email address there, and `provider_message_id` means
+ *    a Resend id. A chat id and a Telegram message id are neither.
+ *
+ * Shared instead is the PATTERN, not the table: claim with an insert a partial
+ * unique index refuses to duplicate, send only if the insert won, and record a
+ * failure on the row so the claim is released for the next run. See the header
+ * of `lib/mail/outbound.ts` — the reasoning there applies here unchanged.
+ *
+ * `chat_id` is stored per row rather than read back from settings, so the log
+ * still answers "where did this go" after the destination is changed.
+ */
+export const telegramAlerts = pgTable(
+  'telegram_alerts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: telegramAlertKindEnum('kind').notNull(),
+    /** Set for the two payment alerts, null for a processing failure. */
+    paymentId: uuid('payment_id').references(() => payments.id, { onDelete: 'cascade' }),
+    /** Set for a processing failure, null for the payment alerts. */
+    webhookEventId: uuid('webhook_event_id').references(() => webhookEvents.id, {
+      onDelete: 'cascade',
+    }),
+    /** The destination actually used. Never the bot token, which stays in env. */
+    chatId: text('chat_id').notNull(),
+    /** Telegram's `message_id`. Null while in flight, and on failure. */
+    providerMessageId: text('provider_message_id'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Null on success. Non-null releases the claim below for a retry. */
+    error: text('error'),
+  },
+  (t) => [
+    /*
+     * One alert per payment, whichever kind.
+     *
+     * Keyed on the payment alone rather than on (payment, kind) because
+     * `payments.status` is written at insert and never updated — a payment row
+     * is succeeded or failed for life, so a second alert for the same payment
+     * under the other kind would always be a duplicate, never a transition.
+     */
+    uniqueIndex('telegram_alerts_payment_once')
+      .on(t.paymentId)
+      .where(sql`${t.paymentId} is not null and ${t.error} is null`),
+    /* One alert per dead-lettered event, on the same terms. */
+    uniqueIndex('telegram_alerts_event_once')
+      .on(t.webhookEventId)
+      .where(sql`${t.webhookEventId} is not null and ${t.error} is null`),
+    /*
+     * Exactly one subject per row. Without this a row could reference both a
+     * payment and an event, or neither, and both claims above would pass it.
+     */
+    check(
+      'telegram_alerts_one_subject',
+      sql`(${t.paymentId} is null) <> (${t.webhookEventId} is null)`,
+    ),
+    index('telegram_alerts_sent_at_idx').on(t.sentAt),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /* loginAttempts                                                              */
 /* -------------------------------------------------------------------------- */
 
@@ -329,7 +412,7 @@ export const loginAttempts = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     /**
      * Namespaced key, never a bare value: 'ip:102.89.34.7' or
-     * 'email:accounts@molekschools.ng'. The prefix keeps the two counters in
+     * 'email:accounts@molekschools.invalid'. The prefix keeps the two counters in
      * separate spaces so a crafted email can never collide with an IP counter.
      */
     identifier: text('identifier').notNull(),
@@ -593,5 +676,9 @@ export type PaymentStatus = (typeof paymentStatusEnum.enumValues)[number];
 export type SentEmail = typeof sentEmails.$inferSelect;
 export type NewSentEmail = typeof sentEmails.$inferInsert;
 export type EmailKind = (typeof emailKindEnum.enumValues)[number];
+
+export type TelegramAlert = typeof telegramAlerts.$inferSelect;
+export type NewTelegramAlert = typeof telegramAlerts.$inferInsert;
+export type TelegramAlertKind = (typeof telegramAlertKindEnum.enumValues)[number];
 
 export type ReminderChannel = (typeof reminderChannelEnum.enumValues)[number];

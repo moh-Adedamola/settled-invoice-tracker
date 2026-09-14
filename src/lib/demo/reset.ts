@@ -365,7 +365,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Molek Schools',
       localPart: 'accounts',
-      domain: 'molekschools.ng',
+      domain: 'molekschools.invalid',
       phone: '+234 803 412 7788',
       currency: 'NGN',
       kind: 'school',
@@ -375,7 +375,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Sabi Foods Ltd',
       localPart: 'finance',
-      domain: 'sabifoods.com.ng',
+      domain: 'sabifoods.invalid',
       phone: '+234 701 559 2043',
       currency: 'NGN',
       kind: 'retail',
@@ -387,7 +387,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Adekunle & Sons',
       localPart: 'info',
-      domain: 'adekunleandsons.ng',
+      domain: 'adekunleandsons.invalid',
       phone: '+234 802 771 6610',
       currency: 'NGN',
       kind: 'services',
@@ -397,7 +397,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Ikeja Dental Care',
       localPart: 'admin',
-      domain: 'ikejadental.ng',
+      domain: 'ikejadental.invalid',
       phone: '+234 809 233 4471',
       currency: 'NGN',
       kind: 'services',
@@ -407,7 +407,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Ranti Logistics Ltd',
       localPart: 'accounts',
-      domain: 'rantilogistics.com',
+      domain: 'rantilogistics.invalid',
       phone: '+234 706 884 1129',
       currency: 'NGN',
       kind: 'services',
@@ -417,7 +417,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Green Pastures Montessori',
       localPart: 'bursar',
-      domain: 'greenpastures.sch.ng',
+      domain: 'greenpastures.invalid',
       phone: '+234 805 190 3357',
       currency: 'NGN',
       kind: 'school',
@@ -427,7 +427,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Ovie Autos Nigeria',
       localPart: 'sales',
-      domain: 'ovieautos.ng',
+      domain: 'ovieautos.invalid',
       phone: '+234 813 447 9026',
       currency: 'NGN',
       kind: 'retail',
@@ -437,7 +437,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Chidera Pharma Ltd',
       localPart: 'accounts',
-      domain: 'chiderapharma.com.ng',
+      domain: 'chiderapharma.invalid',
       phone: '+234 807 662 5514',
       currency: 'NGN',
       kind: 'retail',
@@ -447,7 +447,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Zuma Ridge Properties',
       localPart: 'billing',
-      domain: 'zumaridge.ng',
+      domain: 'zumaridge.invalid',
       phone: '+234 812 305 7748',
       currency: 'NGN',
       kind: 'services',
@@ -459,7 +459,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Threadcraft Apparel NG',
       localPart: 'hello',
-      domain: 'threadcraft.ng',
+      domain: 'threadcraft.invalid',
       phone: '+234 810 928 6635',
       currency: 'NGN',
       kind: 'retail',
@@ -469,7 +469,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Northbank Studios',
       localPart: 'accounts',
-      domain: 'northbankstudios.co.uk',
+      domain: 'northbankstudios.invalid',
       phone: '+44 20 7946 0812',
       currency: 'GBP',
       kind: 'services',
@@ -481,7 +481,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Cadence Health Ltd',
       localPart: 'finance',
-      domain: 'cadencehealth.co.uk',
+      domain: 'cadencehealth.invalid',
       phone: '+44 161 496 0233',
       currency: 'GBP',
       kind: 'services',
@@ -491,7 +491,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Brightlark Media LLC',
       localPart: 'ap',
-      domain: 'brightlarkmedia.com',
+      domain: 'brightlarkmedia.invalid',
       phone: '+1 415 555 0139',
       currency: 'USD',
       kind: 'services',
@@ -501,7 +501,7 @@ export function buildDemoDataset(): DemoDataset {
     {
       name: 'Harbor & Finch Consulting',
       localPart: 'billing',
-      domain: 'harborandfinch.com',
+      domain: 'harborandfinch.invalid',
       phone: '+1 212 555 0184',
       currency: 'USD',
       kind: 'services',
@@ -839,7 +839,7 @@ export function buildDemoDataset(): DemoDataset {
   const CROSS_BILLING: CrossBilling[] = [
     {
       // Abuja property firm; the diaspora-facing portal bills to their US entity.
-      email: 'billing@zumaridge.ng',
+      email: 'billing@zumaridge.invalid',
       currency: 'USD',
       entries: [
         { status: 'paid', dueInDays: -34, term: 30 },
@@ -848,7 +848,7 @@ export function buildDemoDataset(): DemoDataset {
     },
     {
       // Lagos food business with a UK export arm, and an EU one behind it.
-      email: 'finance@sabifoods.com.ng',
+      email: 'finance@sabifoods.invalid',
       currency: 'GBP',
       entries: [
         { status: 'paid', dueInDays: -47, term: 30 },
@@ -864,13 +864,13 @@ export function buildDemoDataset(): DemoDataset {
        * of the real one; settling it would have written a payment carrying an
        * exchange rate the app does not actually have.
        */
-      email: 'finance@sabifoods.com.ng',
+      email: 'finance@sabifoods.invalid',
       currency: 'EUR',
       entries: [{ status: 'sent', dueInDays: 11, term: 30 }],
     },
     {
       // London studio, one Lagos production, invoiced locally.
-      email: 'accounts@northbankstudios.co.uk',
+      email: 'accounts@northbankstudios.invalid',
       currency: 'NGN',
       entries: [
         { status: 'paid', dueInDays: -26, term: 14 },

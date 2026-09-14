@@ -73,7 +73,7 @@ function buildPayload(overrides: Record<string, unknown> = {}) {
         id: 180_000_000 + (TRANSACTION_ID % 999_999),
         first_name: 'Adaeze',
         last_name: 'Molek',
-        email: `accounts+${RUN}@molekschools.ng`,
+        email: `accounts+${RUN}@molekschools.invalid`,
         customer_code: `CUS_${RUN}${randomBytes(5).toString('hex')}`,
         phone: '+2348034127788',
       },

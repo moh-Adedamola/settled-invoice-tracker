@@ -92,6 +92,62 @@ export type DispatchOutcome =
   | { status: 'failed'; reason: string };
 
 /* -------------------------------------------------------------------------- */
+/* Demo data never receives mail                                              */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Two independent defences, because this one is worth two.
+ *
+ * ## 1. The addresses cannot be delivered to
+ *
+ * Every seeded client is at a `.invalid` domain — `billing@harborandfinch.invalid`,
+ * `accounts@rantilogistics.invalid`. RFC 2606 reserves that TLD permanently and
+ * guarantees no resolver will ever answer for it, so nobody can register one and
+ * a stray send goes nowhere.
+ *
+ * They were plausible-looking real TLDs until 2026-09-14, and the change was not
+ * theoretical: of the fourteen original domains, `harborandfinch.com` was
+ * registered with live MX records pointed at Namecheap forwarding. A receipt to
+ * `billing@harborandfinch.com` would have reached a real person's mailbox, and
+ * only `DEMO_EMAIL_REDIRECT` stopped it.
+ *
+ * ## 2. Demo rows are excluded at the query
+ *
+ * `DEMO_EMAIL_REDIRECT` was never the protection. It exists to work around
+ * Resend's test domain only delivering to the account owner, and it goes away
+ * the day a real sending domain is verified. The nightly reset regenerates the
+ * data, so a gap here would not be a one-off mistake; it would recur for as long
+ * as the demo runs.
+ *
+ * The filter lives in the QUERY rather than at the send, so a future caller that
+ * builds its own message cannot forget it, and the candidate lists stay honest
+ * about what will actually go out.
+ *
+ * Neither defence makes the other redundant. The `.invalid` domains stop mail
+ * that escapes the filter; the filter stops a demo client being mailed at all,
+ * including one whose address was edited to something routable through the
+ * clients form.
+ *
+ * ## Why all three flags, and not just the client's
+ *
+ * The three can legitimately disagree, and each direction is a real send:
+ *
+ *   demo invoice, live client  — `promoteIfNeeded` in `process-events` flips a
+ *     client to live when a real payment matches it, and leaves that client's
+ *     seeded invoices demo. A receipt would be about money that never moved.
+ *   live invoice, demo client  — a real invoice raised against a seeded client
+ *     still addresses an invented mailbox.
+ *   demo payment, live invoice — a seeded payment against a real invoice would
+ *     tell a real client they paid when they did not.
+ *
+ * All three are currently zero in the database, which is the argument for
+ * writing them down rather than relying on it: the invariant is not enforced
+ * anywhere, so it is a fact about today, not a guarantee.
+ */
+const RECEIPT_IS_LIVE = sql`p.is_demo = false and i.is_demo = false and c.is_demo = false`;
+const REMINDER_IS_LIVE = sql`i.is_demo = false and c.is_demo = false`;
+
+/* -------------------------------------------------------------------------- */
 /* Receipts                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -129,6 +185,7 @@ export async function pendingReceipts(limit = 25): Promise<ReceiptCandidate[]> {
         and p.invoice_id is not null
         and c.email is not null and c.email <> ''
         and i.status <> 'void'
+        and ${RECEIPT_IS_LIVE}
         and not exists (
           select 1 from sent_emails s
           where s.payment_id = p.id and s.kind = 'receipt' and s.error is null
@@ -286,6 +343,7 @@ export async function pendingReminders(
           and i.due_at < now()
           and greatest(i.amount_minor - coalesce(s.settled_minor, 0), 0) > 0
           and c.email is not null and c.email <> ''
+          and ${REMINDER_IS_LIVE}
       )
       select
         o.id::text as invoice_id,

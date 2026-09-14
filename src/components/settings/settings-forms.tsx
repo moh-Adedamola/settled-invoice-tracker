@@ -10,6 +10,7 @@ import {
 } from '@/app/(app)/settings/actions';
 import { EMPTY_FORM_STATE, type FormState } from '@/lib/invoices/form-state';
 import { MIN_PASSWORD_LENGTH } from '@/lib/settings/form-schema';
+import { PresenceMark } from '@/components/ui/presence-mark';
 
 /* ==========================================================================
    The settings forms.
@@ -324,12 +325,15 @@ export function ReminderSettingsForm({
 
 export function NotificationSettingsForm({
   initial,
+  botTokenPresent,
 }: {
   initial: {
     telegramChatId: string;
     alertOnPaymentSuccess: boolean;
     alertOnPaymentFailure: boolean;
   };
+  /** Whether TELEGRAM_BOT_TOKEN is set. Never the token — §7, presence marks. */
+  botTokenPresent: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     updateNotificationSettings,
@@ -396,13 +400,31 @@ export function NotificationSettingsForm({
 
         {/*
           Said on the page, not only in a comment. Someone looking for where to
-          paste a bot token needs to find out here that this is not the place.
+          paste a bot token needs to find out here that this is not the place —
+          and, just as importantly, whether it has been set at all.
+
+          Without the mark this panel could be filled in completely and still
+          send nothing: the dispatcher skips silently when the token is missing,
+          which is right for a cron and useless for a person. Present/absent
+          only, on the same terms as the gateway panel — the value is never
+          rendered, not even masked.
         */}
-        <p className="rounded-sm border border-line bg-surface-raised px-3 py-2.5 text-small text-ink-secondary">
-          The bot token lives in the environment, not in this database — a
-          credential in a table is a credential in every backup and every replica.
-          Only the destination is configured here.
-        </p>
+        <div className="flex flex-col gap-2 rounded-sm border border-line bg-surface-raised px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="money text-micro text-ink-muted">TELEGRAM_BOT_TOKEN</span>
+            <PresenceMark
+              ok={botTokenPresent}
+              yes="Token present"
+              no="Token absent"
+              explainNo="No alert can be sent until this is set in the environment."
+            />
+          </div>
+          <p className="text-small text-ink-secondary">
+            The bot token lives in the environment, not in this database — a
+            credential in a table is a credential in every backup and every replica.
+            Only the destination is configured here.
+          </p>
+        </div>
 
         <SaveButton pending={pending} />
       </form>

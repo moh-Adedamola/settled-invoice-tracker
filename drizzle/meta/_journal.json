@@ -43,6 +43,13 @@
       "when": 1789375101951,
       "tag": "0005_unique_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789391259428,
+      "tag": "0006_known_green_goblin",
+      "breakpoints": true
     }
   ]
 }
