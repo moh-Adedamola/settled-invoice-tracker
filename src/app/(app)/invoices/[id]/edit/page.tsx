@@ -26,7 +26,9 @@ export default async function EditInvoicePage({
   const { id } = await params;
 
   // Read before the Suspense boundary, so notFound() can still set the status.
-  const invoice = await getInvoice(id);
+  // 'all': this route is session-gated above — it is a write surface, and a
+  // signed-out visitor never reaches it.
+  const invoice = await getInvoice(id, 'all');
   if (!invoice) notFound();
 
   /*

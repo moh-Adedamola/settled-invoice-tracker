@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { requireUser } from '@/lib/auth/guard';
+import { readScope } from '@/lib/auth/guard';
 import { getInvoice } from '@/lib/queries/invoices';
 import {
   InvoiceNotFoundError,
@@ -32,12 +32,21 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  await requireUser();
+  /*
+   * Public for demo invoices, because the landing page tells a visitor they
+   * can read the PDF. Live invoices are unreachable here for the same reason
+   * they are on the detail page: the scope is part of the query, so a live id
+   * renders nothing and returns 404.
+   */
+  const scope = await readScope();
 
   const { id } = await params;
 
   try {
-    const [pdf, invoice] = await Promise.all([renderInvoicePdf(id), getInvoice(id)]);
+    const [pdf, invoice] = await Promise.all([
+      renderInvoicePdf(id, scope),
+      getInvoice(id, scope),
+    ]);
     if (!invoice) return new NextResponse('Not found', { status: 404 });
 
     const download = new URL(request.url).searchParams.get('download') === '1';

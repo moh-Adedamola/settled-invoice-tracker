@@ -5,6 +5,7 @@ import { sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/lib/db';
 import { BUSINESS_TIMEZONE } from '@/lib/business-timezone';
+import type { ReadScope } from '@/lib/read-scope';
 
 import { convertAtRate } from '@/lib/money';
 import type { PaymentStatus } from '@/lib/db';
@@ -137,6 +138,41 @@ const clampPageSize = (size?: number) =>
 const toBigInt = (value: unknown): bigint =>
   value === null || value === undefined || value === '' ? 0n : BigInt(String(value));
 
+/* ==========================================================================
+   The demo boundary
+   ==========================================================================
+
+   A signed-out visitor may read demo rows and nothing else. That is enforced
+   HERE, as a predicate in the WHERE clause, and not at any of the call sites.
+
+   The difference matters. Fetching a row and then deciding whether to show it
+   leaves the live row in memory, one `return` away from a page, and makes the
+   check something every future caller has to remember. A predicate makes a live
+   id return NO ROW — the same answer as an id that never existed — so a URL
+   typed by hand cannot distinguish "not yours" from "not there", and there is
+   nothing to leak through an error message or a 404 body.
+
+   `alias` is the table's alias in the calling query, because the predicate has
+   to name the right `is_demo` column and these queries join several tables that
+   have one.
+   ========================================================================== */
+function demoBoundary(scope: ReadScope, invoice: string, client: string): SQL {
+  if (scope !== 'demo') return sql`true`;
+
+  /*
+   * BOTH flags, not just the invoice's.
+   *
+   * A demo invoice normally belongs to a demo client, but `promoteIfNeeded` in
+   * `process-events` flips a client to live when a real payment matches them by
+   * email — and it leaves that client's seeded invoices demo. The invoice flag
+   * alone would then publish the name of a client a real payment has touched.
+   *
+   * Requiring both means a promotion quietly narrows the public ledger instead
+   * of quietly widening it, which is the direction a boundary should fail in.
+   */
+  return sql`${sql.raw(invoice)}.is_demo = true and ${sql.raw(client)}.is_demo = true`;
+}
+
 /**
  * One query. Rows, the filtered total and the derived status all come back
  * together — no N+1 for payment sums, no second round trip for the count.
@@ -145,7 +181,8 @@ const toBigInt = (value: unknown): bigint =>
  * the LIMIT without a separate aggregate pass.
  */
 export async function listInvoices(
-  params: InvoiceListParams = {},
+  params: InvoiceListParams,
+  scope: ReadScope,
 ): Promise<InvoiceListResult> {
   const page = clampPage(params.page);
   const pageSize = clampPageSize(params.pageSize);
@@ -213,6 +250,10 @@ export async function listInvoices(
       from invoices i
       join clients c on c.id = i.client_id
       left join settled s on s.invoice_id = i.id
+      -- The demo boundary, applied INSIDE the CTE so a live row is never
+      -- aggregated, counted by count(*) over(), or paged over. Filtering
+      -- outside would have leaked the total even with the rows withheld.
+      where ${demoBoundary(scope, 'i', 'c')}
     )
     select
       e.id::text,
@@ -298,15 +339,34 @@ export type InvoiceFilterOptions = {
  * The inner join is right here and wrong in a picker: a filter should only
  * offer values that can match something.
  */
-export async function getInvoiceFilterOptions(): Promise<InvoiceFilterOptions> {
+/*
+ * Scoped too, and this one is easy to overlook.
+ *
+ * The filter bar's client dropdown is a list of names, rendered straight into
+ * the page. Left unscoped it would publish every live client to a signed-out
+ * visitor without a single live invoice ever being displayed — the leak would
+ * be in the <select>, not in the ledger anyone was looking at.
+ */
+export async function getInvoiceFilterOptions(
+  scope: ReadScope,
+): Promise<InvoiceFilterOptions> {
+  const boundary = demoBoundary(scope, 'i', 'c');
+
   const [clientRows, currencyRows] = await Promise.all([
     db.execute(sql`
       select distinct c.id::text as id, c.name, (c.archived_at is not null) as archived
       from clients c
       join invoices i on i.client_id = c.id
+      where ${boundary}
       order by c.name
     `),
-    db.execute(sql`select distinct currency from invoices order by currency`),
+    db.execute(sql`
+      select distinct i.currency
+      from invoices i
+      join clients c on c.id = i.client_id
+      where ${boundary}
+      order by i.currency
+    `),
   ]);
 
   return {
@@ -411,7 +471,8 @@ const UUID_PATTERN =
  * request — once in `generateMetadata` for the tab title, once to render — and
  * without it that is two identical round trips, at two different instants.
  */
-export const getInvoice = cache(async (id: string): Promise<InvoiceDetail | null> => {
+export const getInvoice = cache(
+  async (id: string, scope: ReadScope): Promise<InvoiceDetail | null> => {
   if (!UUID_PATTERN.test(id)) return null;
 
   const result = await db.execute(sql`
@@ -509,7 +570,11 @@ export const getInvoice = cache(async (id: string): Promise<InvoiceDetail | null
     join clients c on c.id = i.client_id
     left join settled s on s.invoice_id = i.id
     left join latest_fx f on f.base = i.currency and i.currency <> ${BASE_CURRENCY}
-    where i.id = ${id}::uuid
+    -- The boundary, in the same predicate as the id. A live id under a 'demo'
+    -- scope matches nothing, so it is answered exactly as a nonexistent id is:
+    -- the caller gets null and renders a 404. There is no branch anywhere that
+    -- has seen the row and chosen not to show it.
+    where i.id = ${id}::uuid and ${demoBoundary(scope, 'i', 'c')}
   `);
 
   const row = (result.rows as Record<string, unknown>[])[0];
@@ -593,4 +658,5 @@ export const getInvoice = cache(async (id: string): Promise<InvoiceDetail | null
         }
       : null,
   };
-});
+  },
+);

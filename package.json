@@ -16,7 +16,8 @@
     "test-drain": "tsx --conditions=react-server --env-file=.env.local scripts/test-drain.ts",
     "test-reset": "tsx --conditions=react-server --env-file=.env.local scripts/test-reset.ts",
     "check:pdf": "esbuild scripts/check-pdf-text.tsx --bundle --platform=node --format=esm --target=node22 --conditions=react-server --alias:@=./src --external:@react-pdf/renderer --external:@neondatabase/serverless --external:react --outfile=node_modules/.cache/settled/check-pdf-text.mjs --log-level=warning && node --env-file-if-exists=.env.local node_modules/.cache/settled/check-pdf-text.mjs",
-    "test-money": "tsx scripts/test-money.ts"
+    "test-money": "tsx scripts/test-money.ts",
+    "test-brand-raster": "tsx scripts/test-brand-raster.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

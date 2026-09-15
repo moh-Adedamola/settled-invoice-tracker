@@ -51,7 +51,7 @@ export function ClientsTable({
   };
 
   const headCell =
-    'sticky top-0 z-10 bg-surface px-3 py-2.5 text-micro font-medium uppercase whitespace-nowrap text-ink-muted';
+    'sticky top-[var(--sticky-top)] z-10 bg-surface px-3 py-2.5 text-micro font-medium uppercase whitespace-nowrap text-ink-muted';
   const cell = 'h-11 px-3 text-small whitespace-nowrap';
 
   return (

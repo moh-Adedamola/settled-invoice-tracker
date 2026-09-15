@@ -563,13 +563,13 @@ async function runCase(name: CaseName): Promise<void> {
 
   for (const row of rows) {
     const id = String(row.id);
-    const invoice = await getInvoice(id);
+    const invoice = await getInvoice(id, 'all');
     if (!invoice) {
       check('the sampled invoice loads', false, id);
       continue;
     }
 
-    const runs = extractRuns(await renderInvoicePdf(id));
+    const runs = extractRuns(await renderInvoicePdf(id, 'all'));
     const label = invoice.number;
 
     check(`${label}: decodes`, runs.length > 0, `${runs.length} runs`);

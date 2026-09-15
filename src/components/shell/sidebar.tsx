@@ -73,7 +73,9 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard, enabled: true },
-  { href: '/invoices', label: 'Invoices', Icon: FileText, enabled: true, privileged: true },
+  // Not privileged: the ledger and invoice detail pages are readable signed-out,
+  // scoped to demo rows. See the rule in `lib/auth/guard.ts`.
+  { href: '/invoices', label: 'Invoices', Icon: FileText, enabled: true },
   { href: '/payments', label: 'Payments', Icon: Wallet, enabled: true, privileged: true },
   { href: '/clients', label: 'Clients', Icon: Users, enabled: true, privileged: true },
   { href: '/settings', label: 'Settings', Icon: Settings, enabled: true, privileged: true },
@@ -115,11 +117,29 @@ export function Sidebar({
       {/*
         >=900px: a rail. 900-1280 is always the 60px icon rail per §8's
         auto-collapse; >=1280 honours the persisted preference.
+
+        ## Pinned, and it was not
+
+        Measured on /invoices at 1440x900 before this change: `position: static`
+        and a 1653px-tall box whose top was 700px above the viewport at a 700px
+        scroll. The rail LOOKED anchored on a short page only because it
+        stretched to the flex line, painting its ground the whole way down. Read
+        a ledger to the bottom and every destination had gone with it.
+
+        `self-start` is load-bearing. The parent is a flex row, so the default
+        `align-items: stretch` was what gave this box the document's height, and
+        a sticky box as tall as its own containing block can never move relative
+        to it. Shrink it to its own height first, then pin it.
+
+        `h-dvh`, not `h-screen`: on a phone in landscape the browser chrome is a
+        large fraction of a small viewport, and `vh` keeps measuring the
+        unretracted height. Nothing below 900px renders this rail today, but the
+        rail is what a tablet in landscape gets, and dvh is right there.
       */}
       <nav
         aria-label="Main"
         data-collapsed={collapsed ? 'true' : 'false'}
-        className="hidden shrink-0 flex-col border-r border-line bg-surface-raised min-[900px]:flex min-[900px]:w-[60px] xl:w-[248px] xl:data-[collapsed=true]:w-[60px]"
+        className="hidden shrink-0 flex-col border-r border-line bg-surface-raised min-[900px]:sticky min-[900px]:top-0 min-[900px]:z-30 min-[900px]:flex min-[900px]:h-dvh min-[900px]:w-[60px] min-[900px]:self-start xl:w-[248px] xl:data-[collapsed=true]:w-[60px]"
       >
         {/*
           The wordmark is the way out, and it did not used to be one.
@@ -164,7 +184,15 @@ export function Sidebar({
           </Link>
         </div>
 
-        <ul className="flex flex-1 flex-col gap-0.5 p-2">
+        {/*
+          `min-h-0` before `overflow-y-auto`, in that order, or neither works: a
+          flex child's default `min-height: auto` refuses to shrink below its
+          content, so the list would push the collapse control off a short rail
+          instead of scrolling. With the rail now height-capped at 100dvh this
+          is reachable — five items at 36px clear a 640px viewport easily, but
+          not a 320px-tall landscape one at a large text size.
+        */}
+        <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-2">
           {items.map(({ href, label, Icon, enabled, reason }) => {
             const active = pathname === href;
             const shared =
@@ -227,10 +255,35 @@ export function Sidebar({
         <900px: §8 specifies an overlay drawer. Not built — this is a horizontal
         strip instead, which keeps every destination reachable without a
         half-finished drawer. Flagged in the handover.
+
+        ## Pinned
+
+        "Keeps every destination reachable" was only true above the fold. The
+        strip is the ONLY navigation a phone gets — there is no rail and no
+        drawer — so scrolling a ledger left a visitor with no way to anywhere
+        except the browser's back button.
+
+        `bg-surface-raised` is the ground, and it has to be a real one:
+        `--bg-raised` is the token §6 names for "cards, sidebar, sticky
+        headers", it is opaque in both themes (#fdfdfb / #161c24), and it is one
+        step off `--bg-base` so the strip reads as sitting above the page rather
+        than being a hole in it. A translucent fill here would show ledger rows
+        travelling through the words, which is the thing this bar exists to stay
+        legible against. The landing masthead takes the opposite treatment for
+        the opposite reason — see `masthead-plate` in globals.css.
+
+        z-30 clears the tables. Their pinned cells run to z-20 (the corner cell,
+        which is sticky on both axes), so 30 is the first step above the ledger
+        rather than an arbitrary large number.
+
+        Height is pinned to --app-nav-h so it cannot drift from the offset the
+        ledger headers and the focus clearance are computing against. py-2 stays
+        as the visual padding for the 32px controls; the explicit height is what
+        makes the 49px in globals.css a fact rather than an assumption.
       */}
       <nav
         aria-label="Main"
-        className="flex shrink-0 gap-1 overflow-x-auto border-b border-line bg-surface-raised px-3 py-2 min-[900px]:hidden"
+        className="sticky top-0 z-30 flex h-[var(--app-nav-h)] shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-surface-raised px-3 py-2 min-[900px]:hidden"
       >
         {items.map(({ href, label, Icon, enabled }) =>
           enabled ? (

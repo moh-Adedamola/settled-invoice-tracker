@@ -229,7 +229,8 @@ export async function sendReceipt(
 
   // 2. Build and send. Anything from here on records its outcome on the claim.
   try {
-    const invoice = await getInvoice(candidate.invoiceId);
+    // 'all': a receipt is sent to a real client about a real invoice.
+    const invoice = await getInvoice(candidate.invoiceId, 'all');
     if (!invoice) {
       await failClaim(claimId, 'The invoice disappeared between claim and send.');
       return { status: 'failed', reason: 'invoice not found' };
@@ -243,7 +244,7 @@ export async function sendReceipt(
       method: candidate.method,
     });
 
-    const pdf = await renderInvoicePdf(candidate.invoiceId);
+    const pdf = await renderInvoicePdf(candidate.invoiceId, 'all');
 
     const result = await sendMail({
       to: candidate.recipient,
@@ -395,7 +396,8 @@ export async function sendReminder(
   }
 
   try {
-    const invoice = await getInvoice(candidate.invoiceId);
+    // 'all': a reminder chases a real invoice.
+    const invoice = await getInvoice(candidate.invoiceId, 'all');
     if (!invoice) {
       await releaseReminder(reminderId);
       return { status: 'failed', reason: 'invoice not found' };
@@ -408,7 +410,7 @@ export async function sendReminder(
       daysOverdue: candidate.daysOverdue,
     });
 
-    const pdf = await renderInvoicePdf(candidate.invoiceId);
+    const pdf = await renderInvoicePdf(candidate.invoiceId, 'all');
 
     const result = await sendMail({
       to: candidate.recipient,

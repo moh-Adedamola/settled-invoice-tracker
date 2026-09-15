@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 import { ImageResponse } from 'next/og';
 
+import { COPPER, INK, INK_RAISED, MUTED, PAPER } from '@/lib/brand-raster';
+
 /* ==========================================================================
    The Open Graph card.
    ==========================================================================
@@ -35,37 +37,11 @@ export const contentType = 'image/png';
 export const alt =
   'Settled — every payment matched, every late invoice chased.';
 
-/* ==========================================================================
-   DO NOT REPLACE THESE WITH TOKENS. THEY WILL NOT RESOLVE.
-   ==========================================================================
-
-   §3 says hex lives only in `globals.css`, and this block is the single
-   deliberate exception in the codebase. It is not an oversight anyone needs to
-   tidy up, and the tidy-up does not work:
-
-   `next/og` renders through Satori, which implements a subset of CSS against a
-   detached element tree with no document, no cascade and no stylesheet. There
-   is nothing for a custom property to inherit FROM. `color: var(--accent)`
-   does not fall back to the token's value and does not throw — it resolves to
-   nothing, and the text is drawn in the initial colour. On an ink ground that
-   is near-black on near-black: an OG card that looks blank, in a preview nobody
-   opens until it is already being shared.
-
-   The same applies to a Tailwind class, which is why this file is written in
-   inline styles throughout: there is no stylesheet here for a class to match.
-
-   So these five are copied from §3 by hand, and the cost is that a palette
-   change has to be applied twice. That cost is real and it is the cheaper side
-   of the trade — the alternative is a card that fails silently in the one place
-   it is impossible to notice.
-
-   If §3's values change, change them here too.
-   ========================================================================== */
-const INK = '#0e1319';        /* --bg-base    */
-const INK_RAISED = '#161c24'; /* --bg-raised  */
-const COPPER = '#d7935e';     /* --accent     */
-const PAPER = '#ebeff4';      /* --fg-primary */
-const MUTED = '#8a939c';      /* --fg-muted   */
+/*
+ * Palette from `lib/brand-raster`, which is the single place rasterised assets
+ * are allowed to hold hex — Satori resolves no custom properties, so a
+ * `var(--accent)` here renders as nothing. The full explanation is in that file.
+ */      /* --fg-muted   */
 
 export default async function Image() {
   const fontDir = join(process.cwd(), 'src', 'lib', 'pdf', 'fonts');

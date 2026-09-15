@@ -66,8 +66,33 @@ export function InvoicesTable({
   const listQuery = query.toString();
   const detailSuffix = listQuery ? `?back=${encodeURIComponent(listQuery)}` : '';
 
+  /*
+    `top-[var(--sticky-top)]`, not `top-0`. Below 900px the shell's nav strip is
+    pinned across the top of the scrollport, so a column header that pinned at
+    zero would pin UNDER it — and the band where that matters is real: the table
+    replaces the card list at 768px and the strip does not give way to the rail
+    until 900px. The token is 49px there and 0 above it, which is the whole
+    range in one expression. See the block in globals.css.
+
+    And the header does not pin — not here, not in any of the five tables, and
+    not before this change either. <ScrollCue> wraps the table in
+    `overflow-x: auto`, and CSS computes the other axis to `auto` whenever one
+    axis is not `visible`, so that div — not the page — is the thead's
+    scrollport. It has no height cap, so scrollHeight equals clientHeight
+    (measured: 1135 = 1135 on /invoices at 1440x900), and a scrollport that
+    never scrolls never pins anything.
+
+    That is SETTLED, not outstanding. Capping the wrapper's height would switch
+    every header on at once, and §7 declines it: page-scroll is right for a
+    ledger, and a pane-scrolled table inside a page-scrolled document gives the
+    reader two scroll positions to hold, strands the pagination below a
+    viewport-height box, and makes the wheel depend on where the pointer is.
+    The header scrolling away is the accepted cost, not a defect. Read §7
+    (`Sticky header — specified, not shipped`) before touching either the
+    `top` above or ScrollCue's overflow.
+  */
   const headCell =
-    'sticky top-0 z-10 bg-surface px-3 py-2.5 text-micro font-medium uppercase whitespace-nowrap text-ink-muted';
+    'sticky top-[var(--sticky-top)] z-10 bg-surface px-3 py-2.5 text-micro font-medium uppercase whitespace-nowrap text-ink-muted';
   const bodyCell = 'h-11 px-3 text-small whitespace-nowrap';
 
   return (

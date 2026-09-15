@@ -678,6 +678,9 @@ screenshot.
   reference and are quieter. This is a considered rejection, not an omission.
 - **Sticky header**: `bg-base` (not raised — it must not read as a floating card),
   `text-micro` uppercase in `--fg-muted`, 2px `--line-strong` bottom border, `z-10`.
+  **It does not currently pin.** The markup is right and the offset is right; the
+  scrollport is not. See *Sticky header — specified, not shipped* below before relying
+  on this, or before "fixing" a `top` value that is already correct.
 - **Hover**: `--row-hover` (**1.40:1**), `--duration-fast`. No transform, no shadow, no
   scale. The obvious choice, `bg-raised`, measures **1.09:1** against the ground — too
   weak to tell you which row you are on at row eighteen. Light theme reaches only 1.15:1;
@@ -689,6 +692,53 @@ screenshot.
 - Money columns right-aligned, `money` utility, currency mark in its own span.
 - Sort indicator: a 1px copper underline beneath the active column header, not an icon
   swap. See **Sortable column header** below — the visual mark is only half of it.
+
+#### Sticky header — specified, not shipped
+
+The bullet above has described a sticky column header since the first draft. **The header
+has never pinned.** Not in one table, not at one width, not in one theme — the
+declaration has been inert in all five tables for as long as they have existed, and the
+spec has been describing an app nobody was shipping.
+
+**Measured** on `/invoices` at 1440×900, Chromium 141, scrolled to y=700: the `<th>`
+computes `position: sticky`, its `top` resolves, and its bounding rect sits at **−254.7px**
+— a quarter of a screen above the viewport, travelling with the rows. At 768×1024 scrolled
+to the document floor it sits at −134.6px. The column names are simply gone.
+
+**Why.** `<ScrollCue>` wraps every table in `overflow-x: auto` to carry the horizontal
+scroll between the two pinned columns. CSS resolves the other axis along with it: when one
+axis is not `visible`, the other computes to `auto` too. So that wrapper — not the page —
+is the nearest scrollport for the `thead`, and a sticky element is positioned against its
+nearest scrollport and nothing else. The wrapper has no height cap, so its `scrollHeight`
+equals its `clientHeight` (**1135 = 1135**, measured), which means it never scrolls
+vertically, which means it never pins anything. `position: sticky` inside a scrollport that
+cannot scroll is a no-op, and it fails silently: no warning, no visual artefact, nothing to
+notice unless you scroll a long ledger and register an absence.
+
+This is not a bug in the table markup. `top` is correct, `z-10` is correct, the ground is
+correct. Changing any of them changes nothing.
+
+**The switch**, if it is ever wanted, is one property: give that wrapper a bounded height
+(`max-height` in the region of `100dvh` minus `--sticky-top` and the page chrome above it),
+which turns it into a real vertical scrollport and switches every header on at once.
+
+**And it is deliberately not taken.** Page-scroll is the right behaviour for a ledger. A
+pane-scrolled table inside a page-scrolled document gives the reader two scroll positions
+to hold in their head, strands the pagination control below a viewport-height box, and
+makes the wheel's behaviour depend on where the pointer happens to be. That is worse than a
+header that scrolls away. **The header scrolling away is the accepted cost of page-scroll,
+not an outstanding defect.** Anyone re-opening this should be arguing against page-scroll,
+not reaching for `max-height`.
+
+**`--sticky-top` is already coordinated for it.** All ten header cells across the five
+tables read `top-[var(--sticky-top)]`, not `top-0`. The token (globals.css, and §8) resolves
+to `49px` below 900px — where the shell's horizontal nav strip is pinned across the top of
+the scrollport — and to `0` at and above 900px, where navigation is the vertical rail and
+nothing is pinned above the content. That band is real rather than theoretical: the table
+replaces the stacked card list at 768px, but the strip does not give way to the rail until
+900px, so there are 132px of viewport width where a header pinning at `top: 0` would pin
+*underneath* the nav. So the offset is live, correct, and currently unobservable. Leave it
+alone.
 
 #### Sortable column header
 
@@ -1492,6 +1542,66 @@ The strip: `bg-surface-raised`, 1px `--line` bottom border, `overflow-x-auto`,
 (`--accent-subtle` ground). It replaces the rail rather than sitting alongside
 it.
 
+### Navigation is pinned, and `--sticky-top` is the contract
+
+All three navigation surfaces stay put on scroll: the strip below 900px, the rail at and
+above it, and the marketing masthead at every width. Before this, all three scrolled away.
+The rail's failure was the quiet one — it *looked* anchored, because `align-items: stretch`
+gave it the document's height and it painted its ground the whole way down, but measured at
+1440×900 scrolled to y=700 it was `position: static` with its top 700px above the viewport.
+A sticky box as tall as its own containing block can never move relative to it, so
+**`self-start` is load-bearing** on the rail: shrink it to its own height, then pin it.
+
+**`--sticky-top` answers one question: how much chrome is pinned above me right now.**
+Everything that needs clearance reads it rather than re-deriving it.
+
+| Context | `--sticky-top` | Why |
+| --- | --- | --- |
+| app shell, <900px | `49px` (`--app-nav-h`) | the strip is pinned across the top |
+| app shell, ≥900px | `0` | navigation is the vertical rail; nothing is pinned above content |
+| marketing segment | `76px` (`--masthead-h`), `56px` under `max-height: 480px` | set on the segment wrapper |
+
+It is a **variable rather than a constant because it inherits**. The marketing segment sets
+its own on its wrapper and every descendant follows, so nothing in that subtree needs to
+know what the app shell's strip is doing. Two consumers today: the ledger column headers
+(§7) and the focus clearance below.
+
+**Focus clearance uses `scroll-margin-top` on the targets, not `scroll-padding-top` on the
+scrollport.** A sticky bar covers the top of the scrollport and the browser does not know
+it: tab to a control below the fold and it scrolls to y=0, which is now underneath the nav —
+the reader hears focus move and sees nothing, focus ring included. `scroll-padding-top` on
+the viewport would be the tidier primitive, but the number is not a property of the
+viewport; it differs per segment, and only `scroll-margin-top` inherits its way to the right
+answer. The rule is `calc(var(--sticky-top) + 0.75rem)` in `:where(...)` — zero specificity,
+so any component can override — and it covers `:target` too, which is the same failure
+arrived at from a URL fragment instead of the Tab key.
+
+Verified by tab-walking `/invoices`, `/demo` and `/` at 360 / 768 / 844×390 / 1440 in both
+themes: **zero focus targets landing under the chrome**, tightest clearance 11.5px.
+
+**Vertical cost.** A pinned bar is paid for in viewport height, which is scarcest on a phone
+in landscape:
+
+| Viewport | Chrome | Usable | |
+| --- | --- | --- | --- |
+| 360×640, app | 49px | 591px | 92% |
+| 844×390, app | 49px | 341px | 87% |
+| 844×390, landing | 56px | 334px | 86% |
+
+The masthead's shrink is keyed to `max-height: 480px`, **not** a width query — the cost of a
+sticky bar is measured in vertical space, so the condition that relieves it should be too.
+That also catches a short desktop window, which a width query would miss.
+
+**Grounds are not interchangeable between the two kinds of bar.** The app strip takes a flat
+opaque `--bg-raised` because it sits over ledger rows and the only requirement is that the
+rows do not read through it. The landing masthead takes the opposite treatment for the
+opposite reason — see §2's full-ambition allowance and the `masthead-plate` utility. It sits
+over four layered grounds, where an opaque bar does not read as chrome above the plate; it
+reads as a seam, as though the sheet were cut at 76px and rejoined. So it is the paper at
+72% over a 14px blur, with `saturate(1.35)` restoring the chroma the blur averages away, and
+its bottom rule is a gradient hairline that fades out at the gutters rather than a border —
+a full-bleed hairline is itself a cut line. Do not "fix" it to an opaque fill.
+
 **Breakpoints** `sm` 640 · `md` 768 · `lg` 1024 · `xl` 1280 · `2xl` 1536 (Tailwind
 defaults), plus two app-specific thresholds: **900px** sidebar → drawer, **1280px**
 sidebar auto-collapse.
@@ -1795,3 +1905,78 @@ light revenue pair.
 Every number in §3 and §4 was measured from the final hex values, not from the OKLCH
 inputs. To re-verify after any change, re-run the measurement over the new hexes — do
 not reason about contrast by eye.
+
+---
+
+## Build hazards
+
+Things the toolchain does to CSS between what is written in `globals.css` and what the
+browser applies. Each one here cost real debugging time; none of them produced an error.
+
+### Vendor prefixes: the build may keep the prefixed twin and drop the standard one
+
+**Do not hand-write a `-webkit-` (or `-moz-`, or `-ms-`) declaration next to its standard
+property.** Write the standard property alone and let the build add prefixes according to
+its own browser targets.
+
+Lightning CSS — Tailwind 4's minifier, so this applies to every rule in this codebase —
+reads a hand-written prefixed/unprefixed pair as redundant and collapses it to one
+declaration. **It is not guaranteed to keep the standard one.** In the case that caught us
+it kept the prefixed one and discarded the standard property entirely:
+
+```css
+/* written */                          /* emitted */
+backdrop-filter: blur(14px);           -webkit-backdrop-filter: blur(14px);
+-webkit-backdrop-filter: blur(14px);
+```
+
+On Chromium 141 that inverts support. Measured there:
+`CSS.supports('backdrop-filter', 'blur(1px)')` is **true**;
+`CSS.supports('-webkit-backdrop-filter', 'blur(1px)')` is **false**. So the one surviving
+declaration applied to nothing, the property computed to `none`, and the landing masthead
+shipped as a flat 72%-opacity wash with the hero reading through it at full contrast.
+
+**The trap is general.** Nothing about it is specific to `backdrop-filter` — it is a
+property of how the minifier collapses declaration pairs, and it can bite any property
+whose prefixed form is still commonly written by hand: `backdrop-filter`, `user-select`,
+`mask`, `background-clip: text`, `text-size-adjust`, `appearance`.
+
+### A `@supports not (A or B)` guard does not catch it
+
+The obvious defence is the wrong shape:
+
+```css
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  /* fallback */
+}
+```
+
+This asks *"is the feature unavailable?"*, but the failure is not an unavailable feature —
+it is an available feature reached through the wrong name. The standard property **is**
+supported, so the `or` is true, so `not (...)` is false, and the fallback never runs. The
+guard reports health while the thing it guards is dead.
+
+Guard on the **one property you actually wrote**:
+
+```css
+@supports not (backdrop-filter: blur(1px)) { /* fallback */ }
+```
+
+Which follows from the rule above: if only one property is ever written, there is only one
+thing to test, and the guard cannot drift out of step with the declaration.
+
+### How to catch this class of bug
+
+`@supports` tests what the browser can do; it cannot test what the build emitted. Those are
+different questions and only the second one was wrong here. So verify against the served
+stylesheet and the computed style, never against the source:
+
+1. Read `getComputedStyle(el)` for the property, in a real browser, on the running app. A
+   property that silently computes to its initial value (`none`, `auto`, `normal`) is the
+   signature — there is no console warning for a declaration the build removed.
+2. If it is wrong, read the **served** CSS, not `globals.css`, and find what was actually
+   emitted for the rule.
+
+The same two steps are what established that the ledger's sticky header has never pinned
+(§7) — in both cases the source was correct and the failure was silent, and only the
+computed style showed it.

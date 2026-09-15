@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
-import { isReadOnly, requireUser } from '@/lib/auth/guard';
+import { isReadOnly, readScope } from '@/lib/auth/guard';
 import { getInvoice } from '@/lib/queries/invoices';
 import { currencySymbol, formatDateFull, formatMinorDigits } from '@/lib/format';
 import { firstValue, type RawSearchParams } from '@/lib/search-params';
@@ -25,7 +25,9 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const invoice = await getInvoice(id);
+  // Scoped here too: an unscoped read in generateMetadata would put a live
+  // invoice number in the browser tab of a page that then 404s.
+  const invoice = await getInvoice(id, await readScope());
   return { title: invoice ? `${invoice.number} · Settled` : 'Invoice · Settled' };
 }
 
@@ -82,8 +84,6 @@ export default async function InvoiceDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<RawSearchParams>;
 }) {
-  await requireUser();
-
   // Next 16: both are promises.
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const back = backHref(firstValue(query.back));
@@ -106,7 +106,12 @@ export default async function InvoiceDetailPage({
    * notFound() throws a NEXT_NOT_FOUND signal that Next unwinds into the 404
    * boundary. Nothing here may catch it — hence no try/catch around the read.
    */
-  const invoice = await getInvoice(id);
+  /*
+   * No `requireUser()`; the scope does the work. A signed-out visitor asking
+   * for a live invoice's id gets null from the query and a 404 from here —
+   * the same answer as an id that does not exist, which is the point.
+   */
+  const invoice = await getInvoice(id, await readScope());
   if (!invoice) notFound();
 
   // Presentation only. Every action re-checks with assertCanWrite on the server.

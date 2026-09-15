@@ -3,6 +3,8 @@ import 'server-only';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
 
+import type { ReadScope } from '@/lib/read-scope';
+
 import { getSessionCookie, setSessionCookie } from './cookies';
 import { validateSession } from './session';
 import type { ValidatedSession } from './session';
@@ -101,28 +103,60 @@ export async function commitSessionRefresh(): Promise<void> {
  *
  * Settle this once, here, rather than per page.
  *
- * **A route that renders a record requires a session.** Invoices, payments,
- * clients, and anything built from them name real people and real sums. A
- * client engaged an agency; they did not agree to appear on a public web page,
- * and the fact that today's database happens to hold only generated rows is a
- * property of the seed, not a licence. `requireUser()` goes at the top of every
- * such page.
+ * **A route that renders a LIVE record requires a session.** Invoices,
+ * payments, clients and anything built from them name real people and real
+ * sums. A client engaged an agency; they did not agree to appear on a public
+ * web page.
  *
- * **`/demo` is the sole exception, and it is not one.** It is a curated sales
- * surface whose contract with the visitor is stated on the page: the data is
- * generated and resets nightly. It stays public because the reset job
- * guarantees what it shows, not because dashboards are less sensitive than
- * ledgers. If a public tour of another surface is ever wanted, it belongs
- * beside `/demo` on that same guarantee — never by dropping the guard on the
- * real route.
+ * **A demo record is public**, on exactly the argument that makes `/demo`
+ * public: the nightly reset is a guarantee about what those rows ARE. They name
+ * no one, because `buildDemoDataset` invented every name, and they resolve to
+ * nothing, because every seeded address is at a `.invalid` domain (§9b). The
+ * guarantee is the reset job, not a judgement that ledgers are less sensitive
+ * than dashboards.
  *
- * Read-only and unauthenticated are different questions. `isReadOnly()` decides
- * which *affordances* render for someone already admitted; it never decides who
- * is admitted. A viewer-role session is read-only and still authenticated.
+ * This is a revision. The rule used to be "any route rendering a record
+ * requires a session", and the reason it changed is that it had become untrue
+ * in the direction that matters: the landing page tells a visitor they can
+ * "open an invoice, read the PDF", and the invoice routes bounced them to a
+ * login form. A promise on the marketing page and a redirect on the route is a
+ * worse failure than either policy on its own.
  *
- * Applies to `/invoices` today and to `/payments`, `/clients` and `/settings`
- * when they are built.
+ * **The boundary is `isDemo`, and it is enforced in SQL, never in a page.**
+ * Every scoped read takes a `ReadScope` (`lib/read-scope.ts`) and a `'demo'`
+ * scope adds `is_demo = true` to the WHERE clause. A live id typed into the URL
+ * therefore returns no row at all — indistinguishable from a row that does not
+ * exist — rather than being fetched and then hidden. Filtering after the fetch
+ * would be a second thing to remember at every call site, and the first one
+ * forgotten is a leak.
+ *
+ * **Writing is untouched.** `assertCanWrite()` still guards every mutation and
+ * still demands an admin session, so read access grants nothing. `isReadOnly()`
+ * hides the write affordances from a visitor, which is presentation only — a
+ * hidden button was never the check.
+ *
+ * Read-only and unauthenticated remain different questions. `isReadOnly()`
+ * decides which affordances render for someone already admitted; it never
+ * decides who is admitted. A viewer-role session is read-only and still
+ * authenticated.
+ *
+ * **Public, demo-scoped:** `/demo`, `/invoices`, `/invoices/[id]`,
+ * `/invoices/[id]/pdf`.
+ * **Session required:** `/dashboard`, `/payments`, `/clients`, `/settings`, and
+ * every edit or new form — including `/invoices/[id]/edit`, which is a write
+ * surface whatever it renders.
  */
+
+/**
+ * What the current reader may see.
+ *
+ * The one place a session is turned into a scope, so no page has to decide it.
+ * A page that forgets to call this does not silently widen — it fails to
+ * compile, because the scope parameter is required.
+ */
+export async function readScope(): Promise<ReadScope> {
+  return (await getCurrentSession()) ? 'all' : 'demo';
+}
 
 /** Any authenticated user. Redirects to /login when there is no session. */
 export async function requireUser(): Promise<ValidatedSession> {

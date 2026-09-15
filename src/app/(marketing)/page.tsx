@@ -98,8 +98,27 @@ export default async function LandingPage() {
 
 function Masthead() {
   return (
-    <header className="relative z-20 border-b border-line-subtle/60">
-      <div className="marketing-container flex items-center justify-between py-5">
+    /*
+      Pinned at every width, unlike the app shell's strip — this page has no
+      second navigation to fall back to, and the two things in it ("Sign in",
+      the theme control) are exactly what a reader reaches for at the point they
+      have finished reading and scrolled to the bottom.
+
+      `masthead-plate` rather than a fill: the treatment and the reason for it
+      are documented on the utility in globals.css. Short version — the bar sits
+      over four layers of guilloché, so it is the paper at 72% over a blur, and
+      its bottom rule fades out at the gutters. An opaque bar here reads as a
+      cut across the plate rather than chrome above it.
+
+      `h-[var(--masthead-h)]` rather than padding, because the height is a
+      number other things need: the marketing layout hands the same token to
+      --sticky-top so every focusable in this segment clears the bar. The token
+      shrinks the bar on short viewports — see the layout.
+
+      z-30 to match the app shell's strip. The hero's own layers run to z-20.
+    */
+    <header className="masthead-plate sticky top-0 z-30 h-[var(--masthead-h)]">
+      <div className="marketing-container flex h-full items-center justify-between">
         {/* Standard behaviour, and it was missing: a wordmark is a link home
             even on the page it points at. */}
         <Link

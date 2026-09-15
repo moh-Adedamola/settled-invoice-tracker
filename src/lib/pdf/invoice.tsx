@@ -21,6 +21,7 @@ import {
   invoiceStatusKey,
   type StatusKey,
 } from '@/components/ui/status-badge';
+import type { ReadScope } from '@/lib/read-scope';
 import { renderDocumentToBuffer } from '@/lib/pdf/render-document';
 import { getInvoice } from '@/lib/queries/invoices';
 import { getSettings, type Settings } from '@/lib/queries/settings';
@@ -773,8 +774,20 @@ export class InvoiceNotFoundError extends Error {
  * statement about both and reading them at different instants would let the
  * business name change between the masthead and the footer.
  */
-export async function renderInvoicePdf(invoiceId: string): Promise<Buffer> {
-  const [invoice, settings] = await Promise.all([getInvoice(invoiceId), getSettings()]);
+export async function renderInvoicePdf(
+  invoiceId: string,
+  /*
+   * Passed through rather than assumed. The email paths render live
+   * invoices and pass 'all'; the download route passes whatever its reader
+   * is entitled to, so a signed-out visitor cannot fetch a live invoice's
+   * PDF by id even though the page that links to it is public.
+   */
+  scope: ReadScope,
+): Promise<Buffer> {
+  const [invoice, settings] = await Promise.all([
+    getInvoice(invoiceId, scope),
+    getSettings(),
+  ]);
   if (!invoice) throw new InvoiceNotFoundError(invoiceId);
 
   /*

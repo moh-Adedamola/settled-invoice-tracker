@@ -39,7 +39,7 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
             <tr>
               <th
                 scope="col"
-                className="sticky left-0 top-0 z-20 bg-surface px-4 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
+                className="sticky left-0 top-[var(--sticky-top)] z-20 bg-surface px-4 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
               >
                 Invoice
               </th>
@@ -47,7 +47,7 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
                 <th
                   key={label}
                   scope="col"
-                  className="sticky top-0 z-10 bg-surface px-3 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
+                  className="sticky top-[var(--sticky-top)] z-10 bg-surface px-3 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
                 >
                   {label}
                 </th>
@@ -56,7 +56,7 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
                 <th
                   key={label}
                   scope="col"
-                  className="sticky top-0 z-10 bg-surface px-3 py-2.5 text-right text-micro font-medium uppercase whitespace-nowrap text-ink-muted last:pr-5"
+                  className="sticky top-[var(--sticky-top)] z-10 bg-surface px-3 py-2.5 text-right text-micro font-medium uppercase whitespace-nowrap text-ink-muted last:pr-5"
                 >
                   {label}
                 </th>

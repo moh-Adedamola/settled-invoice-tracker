@@ -463,6 +463,40 @@
   /* For use on an accent-filled control, where copper-on-copper would vanish. */
   --ring-focus-inverse: 0 0 0 var(--ring-offset) var(--accent-fg),
                         0 0 0 calc(var(--ring-offset) + var(--ring-width)) var(--fg-primary);
+
+  /* ------------------------------------------------------------------------
+     Sticky chrome: one number, shared by everything that has to sit under it.
+
+     `--app-nav-h` is the measured height of the horizontal nav strip the shell
+     renders below 900px — h-8 controls (32px) + py-2 (16px) + the 1px bottom
+     rule. It is written here rather than at the call site because three other
+     things need it: the strip's own `top`, the ledger tables' column-header
+     `top`, and the scroll-margin every focusable gets so it is not parked
+     underneath the bar.
+
+     `--sticky-top` is "how much chrome is pinned above me right now", and it
+     is the value everything else reads. It is NOT the same number as
+     --app-nav-h at every width:
+
+       < 900px   the strip is pinned across the top   ->  --app-nav-h
+       >= 900px  navigation is the vertical rail, and
+                 nothing is pinned above the content  ->  0
+
+     It inherits, so a segment with different chrome overrides it on its own
+     wrapper and every descendant follows — see the marketing layout, whose
+     masthead is pinned at every width and is taller than the strip.
+     ------------------------------------------------------------------------ */
+  --app-nav-h: 49px;
+  --sticky-top: var(--app-nav-h);
+}
+
+/* The rail replaces the strip at 900px, and a vertical rail pins nothing above
+   the content. Anything reading --sticky-top for clearance needs zero here, or
+   every ledger header and every focus scroll would carry 49px of dead space. */
+@media (width >= 900px) {
+  :root {
+    --sticky-top: 0px;
+  }
 }
 
 /* ==========================================================================
@@ -476,6 +510,42 @@
    button, painting a copper ring on a copper fill at 1.00:1 - exactly the
    failure ring-inverse exists to prevent. */
 @layer base {
+  /* ------------------------------------------------------------------------
+     Clearance under the pinned chrome.
+
+     A sticky bar covers the top of the scrollport, and the browser does not
+     know that. Tab to a control that sits just below the fold and it scrolls
+     the control to y=0 — which is now underneath the nav. The reader hears the
+     focus move and sees nothing, the ring included.
+
+     `scroll-margin-top` is the fix, and it goes on the TARGETS rather than as
+     `scroll-padding-top` on the scrollport, because the number is not a
+     property of the viewport: it inherits, so the marketing segment's taller
+     masthead corrects it for its own subtree by setting --sticky-top once.
+
+     `:where()` keeps specificity at zero, so any component that wants a
+     different clearance just says so and wins. The extra 0.75rem is breathing
+     room, not clearance — a control flush against the bar reads as clipped.
+
+     :target carries it too: an in-page anchor lands with the same offset,
+     which is the same failure arrived at from the URL instead of the Tab key.
+     ------------------------------------------------------------------------ */
+  :where(
+    a[href],
+    area[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    iframe,
+    [contenteditable],
+    [tabindex]:not([tabindex='-1'])
+  ),
+  :target {
+    scroll-margin-top: calc(var(--sticky-top) + 0.75rem);
+  }
+
   body {
     background: var(--bg-base);
     color: var(--fg-primary);
@@ -687,6 +757,71 @@
 
   @media (width >= 48rem) {
     padding-inline: 2.5rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   The landing masthead's ground, pinned over the plate work.
+
+   The app shell's strip can take a flat --bg-raised fill and be done: it sits
+   over ledger rows, and the only requirement is that the rows do not read
+   through it. The landing page is the opposite problem. Its hero is four
+   layered grounds — a warm bloom, a cool deepening, the engraved hatching and
+   the rosettes — and an opaque bar ruled across that composition does not read
+   as chrome sitting above it. It reads as a seam: the plate stops at 76px and
+   starts again below, as though the sheet were cut and rejoined.
+
+   So the bar is not opaque. It is the paper at 72% over a 14px blur, which is
+   the same move as holding tracing paper over an engraving: the guilloché
+   stays continuous through the masthead as a soft wash, the line work goes out
+   of focus, and the wordmark keeps a legible ground. `saturate(1.35)` puts
+   back the chroma the blur averages away, so the copper under the bar stays
+   copper rather than going to mud.
+
+   Both themes take the same treatment because both define --bg-base as their
+   own paper — #f9f8f5 and #0e1319 — and the token does the switching. Nothing
+   here is a literal.
+
+   The @supports fallback is not decorative. Without backdrop-filter this is a
+   72% wash with the live page showing through at full contrast, which is the
+   unreadable case, so that branch goes fully opaque and accepts the seam.
+
+   The bottom rule is a gradient rather than a border for the same reason the
+   fill is translucent: a hairline that runs the full bleed is a cut line. This
+   one carries its weight in the middle, where the content is, and is gone by
+   the gutters, so the plate closes over its ends.
+   -------------------------------------------------------------------------- */
+@utility masthead-plate {
+  background: color-mix(in srgb, var(--bg-base) 72%, transparent);
+
+  /* Unprefixed only, and DO NOT add the -webkit- twin back. Lightning CSS
+     collapses a hand-written prefixed/unprefixed pair and is not guaranteed to
+     keep the standard one — here it kept the prefixed one, which this Chromium
+     does not support, so the property computed to `none` and the bar shipped as
+     a flat 72% wash. The @supports guard below tests only the property actually
+     written, for the same reason: an `or` across both names reports healthy
+     while the declaration is dead. Full write-up, and the other properties this
+     can bite: docs/design-system.md → Build hazards. */
+  backdrop-filter: blur(14px) saturate(1.35);
+
+  @supports not (backdrop-filter: blur(1px)) {
+    background: var(--bg-base);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--line-subtle) 14%,
+      var(--line-subtle) 86%,
+      transparent
+    );
   }
 }
 

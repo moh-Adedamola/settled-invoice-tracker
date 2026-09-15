@@ -50,7 +50,7 @@ export function UnmatchedQueue({
               <tr>
                 <th
                   scope="col"
-                  className="sticky left-0 top-0 z-20 bg-surface px-4 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
+                  className="sticky left-0 top-[var(--sticky-top)] z-20 bg-surface px-4 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
                 >
                   Reference
                 </th>
@@ -58,21 +58,21 @@ export function UnmatchedQueue({
                   <th
                     key={label}
                     scope="col"
-                    className="sticky top-0 z-10 bg-surface px-3 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
+                    className="sticky top-[var(--sticky-top)] z-10 bg-surface px-3 py-2.5 text-left text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
                   >
                     {label}
                   </th>
                 ))}
                 <th
                   scope="col"
-                  className="sticky top-0 z-10 bg-surface px-3 py-2.5 text-right text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
+                  className="sticky top-[var(--sticky-top)] z-10 bg-surface px-3 py-2.5 text-right text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
                 >
                   Amount
                 </th>
                 {readOnly ? null : (
                   <th
                     scope="col"
-                    className="sticky top-0 z-10 bg-surface py-2.5 pr-5 pl-3 text-right text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
+                    className="sticky top-[var(--sticky-top)] z-10 bg-surface py-2.5 pr-5 pl-3 text-right text-micro font-medium uppercase whitespace-nowrap text-ink-muted"
                   >
                     Action
                   </th>

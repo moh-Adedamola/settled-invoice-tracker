@@ -2,7 +2,8 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
-import { isReadOnly, requireUser } from '@/lib/auth/guard';
+import { isReadOnly, readScope } from '@/lib/auth/guard';
+import type { ReadScope } from '@/lib/read-scope';
 import {
   DEFAULT_DIRECTION,
   DEFAULT_PAGE_SIZE,
@@ -68,7 +69,13 @@ export default async function InvoicesPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  await requireUser();
+  /*
+   * No `requireUser()`. This ledger is readable signed-out, scoped to demo
+   * rows — see the rule in `auth/guard.ts`. The scope is threaded into every
+   * read on the page rather than checked here, so the narrowing happens in
+   * SQL and cannot be skipped by a future read added below.
+   */
+  const scope = await readScope();
   const readOnly = await isReadOnly();
 
   // Next 16: searchParams is a promise, and it is the only state this page has.
@@ -115,6 +122,7 @@ export default async function InvoicesPage({
       <div className="flex flex-col gap-6 px-6 py-6">
         <Suspense fallback={<FiltersSkeleton />}>
           <Filters
+            scope={scope}
             selected={{
               status,
               clientId,
@@ -135,6 +143,7 @@ export default async function InvoicesPage({
           fallback={<InvoicesTableSkeleton />}
         >
           <InvoiceList
+            scope={scope}
             params={{
               status,
               clientId,
@@ -158,10 +167,12 @@ export default async function InvoicesPage({
 
 async function Filters({
   selected,
+  scope,
 }: {
   selected: React.ComponentProps<typeof InvoiceFilters>['selected'];
+  scope: ReadScope;
 }) {
-  const options = await getInvoiceFilterOptions();
+  const options = await getInvoiceFilterOptions(scope);
   return <InvoiceFilters options={options} selected={selected} />;
 }
 
@@ -169,12 +180,14 @@ async function InvoiceList({
   params,
   query,
   filtered,
+  scope,
 }: {
   params: Parameters<typeof listInvoices>[0];
   query: URLSearchParams;
   filtered: boolean;
+  scope: ReadScope;
 }) {
-  const result = await listInvoices(params);
+  const result = await listInvoices(params, scope);
 
   if (result.rows.length === 0) {
     // Two different facts with two different next actions: an empty ledger
