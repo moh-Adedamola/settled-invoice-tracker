@@ -99,6 +99,48 @@ export function Sidebar({
   const collapsed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const toggle = () => persist(!collapsed);
 
+  /**
+   * Keep the keyboard-focused strip item fully inside the scroller.
+   *
+   * Chrome will not scroll for an element that is only PARTIALLY out of view:
+   * focus scrolling aligns "nearest", and "nearest" is a no-op the moment any
+   * part of the box is inside the scrollport. Measured at 360/390/430/500px,
+   * that is exactly the case that keeps happening here — walking the strip with
+   * Tab and Shift+Tab always left one item clipped at an edge with focus on it,
+   * `Invoices` at −24px, `Dashboard` at −63px with 6px of itself showing. The
+   * ring was outside the scrollport and the label was unreadable.
+   *
+   * `scroll-padding-left` does not reach it. The padding is honoured when Chrome
+   * does decide to scroll — with it, an item fully off the left edge lands at
+   * 38px instead of −137px — but it cannot make Chrome scroll in the first
+   * place, and the partially-clipped case is the one that matters.
+   *
+   * This predates the home mark: the strip has always overflowed (509px of items
+   * in a 360px bar) and has always been able to park focus on a clipped item.
+   * The mark narrows the scrollport by 36px, which makes it worse, so it is
+   * fixed here rather than left.
+   *
+   * React's `onFocus` is `focusin`, so it bubbles and one listener covers every
+   * item. Setting `scrollLeft` directly is deliberate: this is a correction to a
+   * jump the browser already made, not a movement of its own, and animating it
+   * would be motion the reader did not ask for. `--duration-*` collapses under
+   * reduced motion anyway; there is nothing here to collapse.
+   */
+  const keepFocusedItemInView = (event: React.FocusEvent<HTMLDivElement>) => {
+    const scroller = event.currentTarget;
+    const item = (event.target as HTMLElement).closest<HTMLElement>('[data-nav-item]');
+    if (!item) return;
+
+    const port = scroller.getBoundingClientRect();
+    const box = item.getBoundingClientRect();
+    // 8px so the item clears the edge rather than sitting flush against it —
+    // a focus ring drawn at the boundary is still half a ring.
+    const gutter = 8;
+
+    if (box.left < port.left) scroller.scrollLeft -= port.left - box.left + gutter;
+    else if (box.right > port.right) scroller.scrollLeft += box.right - port.right + gutter;
+  };
+
   const items = NAV.map((item) => {
     const href = item.href === '/dashboard' ? dashboardHref : item.href;
     const locked = anonymous && item.privileged === true;
@@ -145,8 +187,12 @@ export function Sidebar({
           The wordmark is the way out, and it did not used to be one.
 
           A visitor arriving from the landing page had no route back: the shell
-          renders no home link, so /demo was a room with no door. The mark is
+          rendered no home link, so /demo was a room with no door. The mark is
           where everyone already looks for that door.
+
+          This rail was only half the fix — it is hidden below 900px, where the
+          strip is the whole of navigation. The strip carries the same mark now,
+          from the same `homeHref` prop, so the door exists at every width.
 
           WHERE it goes depends on who is reading, which is why the href is a
           prop rather than a constant:
@@ -256,7 +302,7 @@ export function Sidebar({
         strip instead, which keeps every destination reachable without a
         half-finished drawer. Flagged in the handover.
 
-        ## Pinned
+        ## Pinned to the top
 
         "Keeps every destination reachable" was only true above the fold. The
         strip is the ONLY navigation a phone gets — there is no rail and no
@@ -277,40 +323,116 @@ export function Sidebar({
         rather than an arbitrary large number.
 
         Height is pinned to --app-nav-h so it cannot drift from the offset the
-        ledger headers and the focus clearance are computing against. py-2 stays
-        as the visual padding for the 32px controls; the explicit height is what
-        makes the 49px in globals.css a fact rather than an assumption.
+        ledger headers and the focus clearance are computing against.
+
+        ## Two boxes, and that is the whole trick
+
+        The mark is a SIBLING of the scroller, not a child of it. The bar is a
+        flex row: an unscrolling mark, then a scrollport holding the items.
+
+        The obvious build is one scroller with the mark `sticky left-0` inside
+        it, and it was built that way first. It fails on the keyboard. Measured
+        at 360/390/430/500px, shift-tabbing back along the strip always left
+        exactly one item sitting partly under the mark — Invoices at −27px at
+        360, Dashboard at −67px at 430 — and no amount of `scroll-padding-left`
+        moved it. The padding IS honoured (with it, an item fully off the left
+        edge lands at 38px instead of −137px), but Chrome will not scroll for an
+        element that is only PARTIALLY out of view: focus scrolling aligns
+        "nearest", and "nearest" is a no-op when any part of the box is already
+        inside the scrollport. So the one case that matters is the one case the
+        CSS cannot reach.
+
+        Taking the mark out of the scrollport removes the failure instead of
+        papering over it. Nothing can slide under a box that is not in the
+        scrolling area, there is no overlap to correct, and the mark needs no
+        z-index, no opaque ground of its own and no scroll padding. Items now
+        clip at the divider rather than travelling beneath it, which is also the
+        more honest edge — the rule is where the scrolling region starts.
       */}
       <nav
         aria-label="Main"
-        className="sticky top-0 z-30 flex h-[var(--app-nav-h)] shrink-0 items-center gap-1 overflow-x-auto border-b border-line bg-surface-raised px-3 py-2 min-[900px]:hidden"
+        className="sticky top-0 z-30 flex h-[var(--app-nav-h)] shrink-0 items-center border-b border-line bg-surface-raised min-[900px]:hidden"
       >
-        {items.map(({ href, label, Icon, enabled }) =>
-          enabled ? (
-            <Link
-              key={href}
-              href={href}
-              aria-current={pathname === href ? 'page' : undefined}
-              className={`flex h-8 shrink-0 items-center gap-2 rounded-sm px-2.5 text-small ${
-                pathname === href
-                  ? 'bg-accent-subtle text-ink'
-                  : 'text-ink-secondary'
-              }`}
-            >
-              <Icon aria-hidden="true" size={14} />
-              {label}
-            </Link>
-          ) : (
-            <span
-              key={href}
-              aria-disabled="true"
-              className="flex h-8 shrink-0 items-center gap-2 rounded-sm px-2.5 text-small text-ink-muted opacity-60"
-            >
-              <Icon aria-hidden="true" size={14} />
-              {label}
-            </span>
-          ),
-        )}
+        {/*
+          The way out, and below 900px it did not exist.
+
+          The rail got a home link last round, but the rail is not what a phone
+          renders — this strip is, and it carried no mark. The only other route
+          out was the demo banner's "What Settled does", which renders for
+          anonymous visitors ONLY, so a signed-in admin on a phone had no way
+          back to anything except the browser's back button.
+
+          Same `homeHref` the rail uses, from the same prop, decided by the same
+          rule in the layout: '/' signed out (the landing page is their home and
+          the only way out of the demo), '/dashboard' signed in (mid-session,
+          "home" is not a sales page).
+
+          ## One letter below 640px, the wordmark above it
+
+          The rail already collapses to "S" between 900 and 1280 — this is that
+          treatment, at the width where it earns more. The strip overflows by
+          175px at 360px before the mark is added at all: five items need 509px
+          of a 360px bar. Every pixel the mark takes is a pixel of nav that has
+          to be scrolled to, so while the items overflow, "S" (34px) over
+          "Settled" (80px) is 46px of real estate that buys nothing.
+
+          640px is where it stops being a trade: items (509) + gutters + the
+          full wordmark still fit, and measured at `sm` the strip's overflow is
+          0. So the mark can be spelled out exactly when spelling it out is free.
+
+          The border-r is what stops a bare "S" reading as a nav item that lost
+          its label — the same separation the rail draws under its own mark,
+          turned ninety degrees. It doubles as the edge of the scrolling region.
+
+          `aria-label` spells the name because the visible text is split across
+          two spans so the collapsed state can show just the S, and a screen
+          reader would otherwise announce it as two fragments. The label does
+          not change with the width, so neither does what is announced.
+        */}
+        <Link
+          href={homeHref}
+          aria-label="Settled — home"
+          className="flex h-full shrink-0 items-center border-r border-line-subtle px-3 text-h3 text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
+        >
+          <span aria-hidden="true">S</span>
+          <span aria-hidden="true" className="hidden sm:inline">
+            ettled
+          </span>
+        </Link>
+
+        <div
+          onFocus={keepFocusedItemInView}
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 py-2"
+        >
+          {items.map(({ href, label, Icon, enabled }) =>
+            enabled ? (
+              <Link
+                key={href}
+                href={href}
+                data-nav-item=""
+                aria-current={pathname === href ? 'page' : undefined}
+                className={`flex h-8 shrink-0 items-center gap-2 rounded-sm px-2.5 text-small ${
+                  pathname === href
+                    ? 'bg-accent-subtle text-ink'
+                    : 'text-ink-secondary'
+                }`}
+              >
+                <Icon aria-hidden="true" size={14} />
+                {label}
+              </Link>
+            ) : (
+              <span
+                key={href}
+                data-nav-item=""
+                aria-disabled="true"
+                className="flex h-8 shrink-0 items-center gap-2 rounded-sm px-2.5 text-small text-ink-muted opacity-60"
+              >
+                <Icon aria-hidden="true" size={14} />
+                {label}
+              </span>
+            ),
+          )}
+        </div>
       </nav>
     </>
   );

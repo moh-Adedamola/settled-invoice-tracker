@@ -84,13 +84,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             You are viewing demo data, which resets nightly. Nothing here is a
             real client or a real payment.
             {/*
-              Two ways out, because this banner is the only chrome a visitor on
-              a narrow screen sees — the <900px nav strip carries no wordmark,
-              so the sidebar's home link does not exist for them.
-
               "What Settled does" rather than "Back": a demo link gets shared,
               and the reader who opens it may never have been to the landing
               page to go back to.
+
+              This used to be the ONLY way out on a narrow screen, because the
+              <900px strip carried no wordmark. It is not any more — the strip
+              has a pinned home mark now — which also fixes the half of that
+              problem this banner never covered: it renders for anonymous
+              visitors only, so a signed-in admin on a phone was stranded.
+
+              Kept anyway, and not as a leftover. A mark is a mark; this says in
+              words what the destination is, on the one surface where the reader
+              may not yet know what Settled is. The two are different promises
+              to a first-time visitor.
             */}
             <Link
               href="/"
