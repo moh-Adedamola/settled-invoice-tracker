@@ -117,7 +117,7 @@ function Entry({ invoice, href }: { invoice: InvoiceListRow; href: string }) {
               {' · '}
               <span className="money">
                 {symbol}
-                {formatMinorDigits(invoice.paidMinor)}
+                {formatMinorDigits(invoice.paidMinor, invoice.currency)}
               </span>{' '}
               paid
             </>
@@ -131,7 +131,7 @@ function Entry({ invoice, href }: { invoice: InvoiceListRow; href: string }) {
           className="money shrink-0 text-small whitespace-nowrap text-ink"
         >
           <span className="currency-mark">{symbol}</span>
-          {formatMinorDigits(invoice.amountMinor)}
+          {formatMinorDigits(invoice.amountMinor, invoice.currency)}
         </span>
       </div>
     </Link>

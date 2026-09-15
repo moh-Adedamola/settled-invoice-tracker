@@ -5,7 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 
 import { db, appSettings } from '@/lib/db';
 import type { AppSettings, PaymentProvider } from '@/lib/db';
-import { supportedProviders } from '@/lib/gateways';
+import { credentialsPresent, getRegisteredAdapter } from '@/lib/gateways';
 
 /* ==========================================================================
    Application settings.
@@ -167,12 +167,21 @@ export async function saveNotificationSettings(
 export type GatewayStatus = {
   provider: PaymentProvider;
   label: string;
-  /** An adapter exists and the webhook route will accept this provider. */
+  /** An adapter is implemented for this provider. */
   registered: boolean;
-  /** The credential this adapter needs is set in the environment. */
-  credentialPresent: boolean;
-  /** The env var's NAME. Never its value. */
-  credentialEnvVar: string;
+  /**
+   * The webhook route will accept this provider. Separate from `apiReady`
+   * because Stripe needs a different secret for each: the `whsec_` endpoint
+   * secret verifies signatures, the `sk_` key calls the API. One does not imply
+   * the other, and a panel that collapsed them would report a half-configured
+   * Stripe as ready.
+   */
+  webhookReady: boolean;
+  /** Reconciliation can sweep this provider. */
+  apiReady: boolean;
+  /** The env vars' NAMES. Never their values. */
+  webhookEnvVars: string[];
+  apiEnvVars: string[];
   /** Payments recorded against this provider, so the panel shows live evidence. */
   paymentCount: number;
 };
@@ -193,16 +202,14 @@ export type GatewayStatus = {
  * value never enters a return type, which means it cannot reach a client
  * component by accident.
  */
-const CREDENTIALS: Record<PaymentProvider, { label: string; envVar: string }> = {
-  paystack: { label: 'Paystack', envVar: 'PAYSTACK_SECRET_KEY' },
-  stripe: { label: 'Stripe', envVar: 'STRIPE_SECRET_KEY' },
-  flutterwave: { label: 'Flutterwave', envVar: 'FLUTTERWAVE_SECRET_KEY' },
-  manual: { label: 'Manual entry', envVar: '' },
+const LABELS: Record<PaymentProvider, string> = {
+  paystack: 'Paystack',
+  stripe: 'Stripe',
+  flutterwave: 'Flutterwave',
+  manual: 'Manual entry',
 };
 
 export const getGatewayStatus = cache(async (): Promise<GatewayStatus[]> => {
-  const registered = new Set(supportedProviders());
-
   const counts = new Map<string, number>(
     ((
       await db.execute(sql`
@@ -211,22 +218,37 @@ export const getGatewayStatus = cache(async (): Promise<GatewayStatus[]> => {
     ).rows as Record<string, unknown>[]).map((r) => [String(r.provider), Number(r.n)]),
   );
 
-  return (Object.keys(CREDENTIALS) as PaymentProvider[])
+  return (Object.keys(LABELS) as PaymentProvider[])
     // `manual` is not a gateway — it has no adapter, no webhook and no
     // credential. Listing it here would invite the question of why it has no
     // key, which is a question about a thing that does not exist.
     .filter((provider) => provider !== 'manual')
     .map((provider) => {
-      const { label, envVar } = CREDENTIALS[provider];
-      const raw = process.env[envVar];
+      /*
+       * Which variables a gateway needs is the ADAPTER'S knowledge, read from
+       * it rather than duplicated here. The previous version kept a second map
+       * of provider to env var, which was already wrong for Stripe the moment
+       * that adapter landed: it named the API key and knew nothing about the
+       * webhook secret, so a Stripe install missing `whsec_` would have shown a
+       * confident green tick beside a gateway that rejects every webhook.
+       *
+       * `getRegisteredAdapter`, not `getAdapter` — this panel has to describe an
+       * implemented-but-unconfigured gateway, and `getAdapter` deliberately
+       * hides exactly those.
+       */
+      const adapter = getRegisteredAdapter(provider);
+
       return {
         provider,
-        label,
-        registered: registered.has(provider),
-        // Trimmed: an env var set to an empty string is not a credential, and
-        // it is the most common way a deploy looks configured and is not.
-        credentialPresent: typeof raw === 'string' && raw.trim() !== '',
-        credentialEnvVar: envVar,
+        label: LABELS[provider],
+        registered: adapter !== undefined,
+        // `credentialsPresent` trims: an env var set to an empty string is not a
+        // credential, and it is the most common way a deploy looks configured
+        // and is not.
+        webhookReady: adapter ? credentialsPresent(adapter.credentials.webhook) : false,
+        apiReady: adapter ? credentialsPresent(adapter.credentials.api) : false,
+        webhookEnvVars: adapter?.credentials.webhook ?? [],
+        apiEnvVars: adapter?.credentials.api ?? [],
         paymentCount: counts.get(provider) ?? 0,
       };
     });

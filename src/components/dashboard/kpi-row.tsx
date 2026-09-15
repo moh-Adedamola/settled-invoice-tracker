@@ -23,7 +23,7 @@ function Figure({ minor, currency }: { minor: bigint; currency: string }) {
   return (
     <p className="money text-h3 whitespace-nowrap text-ink">
       <span className="currency-mark">{currencySymbol(currency)}</span>
-      {formatMinorDigits(minor)}
+      {formatMinorDigits(minor, currency)}
     </p>
   );
 }
@@ -73,7 +73,7 @@ export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
                 <span key={c.currency} className="money">
                   {i > 0 ? '  ·  ' : ''}
                   {currencySymbol(c.currency)}
-                  {formatMinorDigits(c.minor)}
+                  {formatMinorDigits(c.minor, c.currency)}
                 </span>
               ))}
             </span>
@@ -95,7 +95,7 @@ export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
           <span className="currency-mark">
             ≈{currencySymbol(outstanding.baseCurrency)}
           </span>
-          {formatMinorDigits(outstanding.baseMinor)}
+          {formatMinorDigits(outstanding.baseMinor, outstanding.baseCurrency)}
         </p>
       </Tile>
 
@@ -104,7 +104,7 @@ export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
         note={
           <span className="money block">
             ≈ {currencySymbol(overdue.baseCurrency)}
-            {formatMinorDigits(overdue.baseMinor)} outstanding
+            {formatMinorDigits(overdue.baseMinor, overdue.baseCurrency)} outstanding
           </span>
         }
       >
@@ -124,7 +124,7 @@ export function KpiRow({ kpis }: { kpis: DashboardKpis }) {
               <span key={c.currency} className="money">
                 {i > 0 ? '  ·  ' : ''}
                 {currencySymbol(c.currency)}
-                {formatMinorDigits(c.minor)}
+                {formatMinorDigits(c.minor, c.currency)}
               </span>
             ))}
             {unmatched.byCurrency.length === 0 ? 'nothing awaiting a match' : null}

@@ -32,7 +32,7 @@ export function ApproxBase({
   return (
     <span className={`money whitespace-nowrap ${className}`}>
       <span className="currency-mark">≈{currencySymbol(currency)}</span>
-      {formatMinorDigits(minor)}
+      {formatMinorDigits(minor, currency)}
       {incomplete ? (
         <span
           className="text-failed"
@@ -65,7 +65,7 @@ export function CurrencyBreakdown({
         <span key={total.currency} className="money whitespace-nowrap">
           {index > 0 ? <span className="text-ink-muted"> · </span> : null}
           <span className="currency-mark">{currencySymbol(total.currency)}</span>
-          {formatMinorDigits(total[field])}
+          {formatMinorDigits(total[field], total.currency)}
         </span>
       ))}
     </span>
@@ -100,7 +100,7 @@ export function MoneyStack({
     return (
       <span className={`money block whitespace-nowrap ${align === 'right' ? 'text-right' : ''}`}>
         <span className="currency-mark">{currencySymbol(client.base.currency)}</span>
-        {formatMinorDigits(client.totals[0]![field])}
+        {formatMinorDigits(client.totals[0]![field], client.base.currency)}
       </span>
     );
   }

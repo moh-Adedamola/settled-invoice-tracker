@@ -35,7 +35,7 @@ export function InvoiceSummary({ invoice }: { invoice: InvoiceDetail }) {
         <Row label="Invoice total">
           <span className="money text-small whitespace-nowrap text-ink">
             <span className="currency-mark">{symbol}</span>
-            {formatMinorDigits(invoice.amountMinor)}
+            {formatMinorDigits(invoice.amountMinor, invoice.currency)}
           </span>
         </Row>
 
@@ -46,7 +46,7 @@ export function InvoiceSummary({ invoice }: { invoice: InvoiceDetail }) {
             }`}
           >
             <span className="currency-mark">{symbol}</span>
-            {formatMinorDigits(invoice.paidMinor)}
+            {formatMinorDigits(invoice.paidMinor, invoice.currency)}
           </span>
         </Row>
 
@@ -60,7 +60,7 @@ export function InvoiceSummary({ invoice }: { invoice: InvoiceDetail }) {
             }`}
           >
             <span className="currency-mark">{symbol}</span>
-            {formatMinorDigits(invoice.outstandingMinor)}
+            {formatMinorDigits(invoice.outstandingMinor, invoice.currency)}
           </dd>
         </div>
       </dl>
@@ -73,7 +73,7 @@ export function InvoiceSummary({ invoice }: { invoice: InvoiceDetail }) {
                 <span className="currency-mark">
                   ≈{currencySymbol(invoice.base.currency)}
                 </span>
-                {formatMinorDigits(invoice.base.amountMinor)}
+                {formatMinorDigits(invoice.base.amountMinor, invoice.base.currency)}
               </span>
             </Row>
             <Row label={`Outstanding, ${invoice.base.currency}`}>
@@ -81,7 +81,7 @@ export function InvoiceSummary({ invoice }: { invoice: InvoiceDetail }) {
                 <span className="currency-mark">
                   ≈{currencySymbol(invoice.base.currency)}
                 </span>
-                {formatMinorDigits(invoice.base.outstandingMinor)}
+                {formatMinorDigits(invoice.base.outstandingMinor, invoice.base.currency)}
               </span>
             </Row>
           </dl>

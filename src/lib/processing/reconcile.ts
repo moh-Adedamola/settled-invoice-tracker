@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 
 import { db, webhookEvents } from '@/lib/db';
 import type { PaymentProvider } from '@/lib/db';
-import { getAdapter, supportedProviders } from '@/lib/gateways';
+import { credentialsPresent, getRegisteredAdapter, supportedProviders } from '@/lib/gateways';
 import { getGatewayStatus } from '@/lib/queries/settings';
 
 /* ==========================================================================
@@ -119,8 +119,14 @@ async function sweepableProviders(): Promise<PaymentProvider[]> {
   const statuses = await getGatewayStatus();
   const registered = new Set(supportedProviders());
 
+  /*
+   * `apiReady`, not webhook-ready. Sweeping needs the API key; taking webhooks
+   * needs the signing secret. Stripe is the case where those differ, and an
+   * install with only the `whsec_` would be swept pointlessly — every request
+   * 401ing — if this checked the wrong one.
+   */
   return statuses
-    .filter((s) => registered.has(s.provider) && s.registered && s.credentialPresent)
+    .filter((s) => registered.has(s.provider) && s.registered && s.apiReady)
     .map((s) => s.provider);
 }
 
@@ -147,9 +153,24 @@ export async function reconcileProvider(
     requests: 0,
   };
 
-  const adapter = getAdapter(provider);
+  /*
+   * `getRegisteredAdapter`, deliberately not `getAdapter`.
+   *
+   * `getAdapter` hides an adapter whose WEBHOOK credential is missing, because
+   * the intake route should 404 for a gateway it cannot verify. Sweeping is the
+   * other half: it needs the API credential and has no use for the signing
+   * secret. A Stripe install holding only `sk_` can reconcile perfectly well,
+   * and going through `getAdapter` would report "no adapter registered" for a
+   * gateway this function had just been told was sweepable.
+   */
+  const adapter = getRegisteredAdapter(provider);
   if (!adapter) {
-    result.error = 'No adapter registered';
+    result.error = 'No adapter implemented';
+    return result;
+  }
+
+  if (!credentialsPresent(adapter.credentials.api)) {
+    result.error = `Missing ${adapter.credentials.api.join(', ')}`;
     return result;
   }
 

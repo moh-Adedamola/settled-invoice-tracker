@@ -345,6 +345,7 @@ const CASE_NAMES = [
   'badge-partial',
   'badge-draft',
   'badge-void',
+  'zero-decimal',
   'batch',
   'real',
 ] as const;
@@ -418,6 +419,72 @@ async function runBatch(): Promise<void> {
   }
 }
 
+/**
+ * A zero-decimal currency, all the way through to the rendered page.
+ *
+ * Every amount in this ledger is stored as major x 100 regardless of currency,
+ * so ¥500 is the bigint 50000. The formatter has to divide by 100 AND then not
+ * print the two places it just divided out — and that second half is easy to
+ * lose, because "500.00" is a plausible-looking number that no test asserting
+ * "the amount appears" would ever catch.
+ *
+ * It belongs in THIS guard rather than only in `test-money` because the invoice
+ * PDF is the one place these figures go to a client. A unit test proves the
+ * function; decoding the finished document proves that the function is what the
+ * document actually used, through the `Money` component, the line table and the
+ * totals block.
+ */
+async function runZeroDecimal(): Promise<void> {
+  const base = syntheticInvoice(['Localisation sprint', 'Tokyo office support'], 'sent');
+  const invoice: InvoiceDetail = {
+    ...base,
+    number: 'INV-GUARD-JPY1',
+    currency: 'JPY',
+    // 50000 stored = ¥500. Two lines, so the total is ¥1,000.
+    amountMinor: 100_000n,
+    outstandingMinor: 100_000n,
+    lineItems: base.lineItems.map((line) => ({
+      ...line,
+      unitAmountMinor: 50_000n,
+      lineAmountMinor: 50_000n,
+    })),
+  };
+
+  const runs = extractRuns(await render(invoice, GUARD_SETTINGS));
+  const joined = runs.map((r) => r.text).join(' ').replace(/\s+/g, ' ');
+
+  check('the JPY document decodes', runs.length > 0, `${runs.length} runs`);
+  survives(runs, 'INV-GUARD-JPY1', 'invoice number');
+
+  // The line unit amount, the line total and the grand total.
+  survives(runs, '500', 'a line amount renders as 500');
+  survives(runs, '1,000', 'the total renders as 1,000');
+
+  /*
+   * The assertion that would have failed before the fix. Checked against the
+   * whole decoded page rather than a single run, because the digits can be
+   * split across text operators for kerning — the thing that must not appear
+   * anywhere is the trailing ".00".
+   */
+  const hasCents = /\b(500|1,000)\.00\b/.test(joined);
+  check(
+    'NO trailing .00 anywhere on a zero-decimal invoice',
+    !hasCents,
+    hasCents ? `found: ${joined.match(/\b(?:500|1,000)\.00\b/)?.[0]}` : '',
+  );
+
+  // And the control: the same stored value in a two-decimal currency MUST
+  // carry its places, so the rule above is currency-sensitive rather than a
+  // blanket "never print decimals".
+  const ngn = extractRuns(await render({ ...invoice, currency: 'NGN' }, GUARD_SETTINGS));
+  const ngnJoined = ngn.map((r) => r.text).join(' ').replace(/\s+/g, ' ');
+  check(
+    'CONTROL: the same value in NGN does render 500.00',
+    /500\.00/.test(ngnJoined),
+    /500\.00/.test(ngnJoined) ? '' : 'the two-decimal path regressed',
+  );
+}
+
 async function runCase(name: CaseName): Promise<void> {
   if (name === 'hazards') {
     const runs = extractRuns(
@@ -439,6 +506,11 @@ async function runCase(name: CaseName): Promise<void> {
     survives(runs, 'Adébáyò Òyèlárán Office Fittings', 'the accented client name survives');
     survives(runs, '14 Admiralty Way', 'the client address survives');
     survives(runs, 'INV-GUARD-0001', 'the invoice number survives');
+    return;
+  }
+
+  if (name === 'zero-decimal') {
+    await runZeroDecimal();
     return;
   }
 

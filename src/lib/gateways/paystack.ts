@@ -386,6 +386,17 @@ async function fetchTransactions(since: Date, until: Date): Promise<SweepPage> {
 export const paystackAdapter: GatewayAdapter = {
   id: 'paystack',
 
+  /*
+   * One key does both jobs here: the same `PAYSTACK_SECRET_KEY` is the HMAC key
+   * for webhook verification AND the bearer token for the list endpoint. That
+   * is Paystack's design, not a shortcut — which is why the split shape below
+   * looks redundant for this adapter and is not for Stripe.
+   */
+  credentials: {
+    webhook: ['PAYSTACK_SECRET_KEY'],
+    api: ['PAYSTACK_SECRET_KEY'],
+  },
+
   verify(rawBody, headers) {
     const secret = process.env.PAYSTACK_SECRET_KEY;
     // Fail closed. An unconfigured environment must reject every webhook

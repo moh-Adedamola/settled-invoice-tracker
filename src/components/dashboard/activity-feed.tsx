@@ -116,7 +116,7 @@ function Row({ entry }: { entry: ActivityEntry }) {
               <span className="currency-mark">
                 {currencySymbol(entry.currency)}
               </span>
-              {formatMinorDigits(entry.amountMinor)}
+              {formatMinorDigits(entry.amountMinor, entry.currency)}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -147,7 +147,7 @@ function Row({ entry }: { entry: ActivityEntry }) {
               <span className="currency-mark">
                 {currencySymbol(entry.currency)}
               </span>
-              {formatMinorDigits(entry.amountMinor)}
+              {formatMinorDigits(entry.amountMinor, entry.currency)}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">

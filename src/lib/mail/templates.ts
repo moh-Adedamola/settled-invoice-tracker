@@ -47,7 +47,7 @@ const MONO = "'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace";
 export type EmailBody = { subject: string; html: string; text: string };
 
 const money = (minor: bigint, currency: string) =>
-  `${currencySymbol(currency)}${formatMinorDigits(minor)}`;
+  `${currencySymbol(currency)}${formatMinorDigits(minor, currency)}`;
 
 /**
  * `payments.method` holds whatever its source called it, and the two sources

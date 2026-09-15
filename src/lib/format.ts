@@ -1,4 +1,5 @@
 import { BUSINESS_TIMEZONE } from './business-timezone';
+import { currencyDecimals, LEDGER_SCALE_DIGITS } from './money';
 
 /**
  * Money formatting. The only place minor units become text.
@@ -21,18 +22,55 @@ export function currencySymbol(currency: string): string {
 
 const grouper = new Intl.NumberFormat('en-US');
 
-/** "1,850,000.00" — digits only, no symbol. Pair with `currencySymbol`. */
-export function formatMinorDigits(minor: bigint): string {
+/** 10n ** LEDGER_SCALE_DIGITS — the divisor between stored and major units. */
+const LEDGER_SCALE = 10n ** BigInt(LEDGER_SCALE_DIGITS);
+
+/**
+ * "1,850,000.00" — digits only, no symbol. Pair with `currencySymbol`.
+ *
+ * ## The currency is required, and it is not decoration
+ *
+ * Every value in this system is stored as major x 100 REGARDLESS of currency
+ * (see `LEDGER_SCALE_DIGITS`), because a uniform scale is what lets two amounts
+ * be added without first asking what they are denominated in. But a currency
+ * with no subunit must not be WRITTEN with one: 500 yen is "500", and rendering
+ * it "500.00" invents a precision the yen does not have and that no Japanese
+ * reader would accept on an invoice.
+ *
+ * So the divisor is fixed and the number of places shown is not. That asymmetry
+ * is the whole point, and it is why this takes a currency rather than reading
+ * two places off the stored value.
+ *
+ * Half-up on the residue, matching `convertAtRate`. For a zero-decimal currency
+ * the stored value should always be a multiple of 100, and the one path that
+ * can break that is `multiplyByQuantity` — 2.5 x 501 yen is 1252.5 yen, a
+ * quantity the currency cannot express. Rounding is the honest display of an
+ * amount the ledger should not have been able to hold; the stored total stays
+ * authoritative, and a line-level residue can make displayed lines sum a unit
+ * away from the displayed total. Input cannot create one: `parseDecimalToMinor`
+ * refuses sub-unit precision for these currencies outright.
+ */
+export function formatMinorDigits(minor: bigint, currency: string): string {
   const negative = minor < 0n;
   const abs = negative ? -minor : minor;
-  const major = abs / 100n;
-  const fraction = abs % 100n;
-  return `${negative ? '-' : ''}${grouper.format(major)}.${String(fraction).padStart(2, '0')}`;
+  const sign = negative ? '-' : '';
+  const decimals = currencyDecimals(currency);
+
+  if (decimals === 0) {
+    // Half-up into whole major units, so ¥1252.50 shows as ¥1253 rather than
+    // silently losing the residue to truncation.
+    const major = (abs + LEDGER_SCALE / 2n) / LEDGER_SCALE;
+    return `${sign}${grouper.format(major)}`;
+  }
+
+  const major = abs / LEDGER_SCALE;
+  const fraction = abs % LEDGER_SCALE;
+  return `${sign}${grouper.format(major)}.${String(fraction).padStart(decimals, '0')}`;
 }
 
 /** "₦1,850,000.00" — symbol included, for contexts without a separate mark span. */
 export function formatMinor(minor: bigint, currency: string): string {
-  return `${currencySymbol(currency)}${formatMinorDigits(minor)}`;
+  return `${currencySymbol(currency)}${formatMinorDigits(minor, currency)}`;
 }
 
 /**

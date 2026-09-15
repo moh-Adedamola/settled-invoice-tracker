@@ -174,7 +174,7 @@ export function InvoicesTable({
                   className="money sticky right-0 z-10 h-11 border-l border-line bg-surface pr-5 pl-3 text-right text-small whitespace-nowrap text-ink group-hover:bg-row-hover"
                 >
                   <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
-                  {formatMinorDigits(invoice.amountMinor)}
+                  {formatMinorDigits(invoice.amountMinor, invoice.currency)}
                 </td>
               </tr>
             );
@@ -207,7 +207,7 @@ function PaidCell({ invoice }: { invoice: InvoiceListRow }) {
   return (
     <span className={overpaid ? 'text-refunded' : undefined}>
       <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
-      {formatMinorDigits(invoice.paidMinor)}
+      {formatMinorDigits(invoice.paidMinor, invoice.currency)}
     </span>
   );
 }

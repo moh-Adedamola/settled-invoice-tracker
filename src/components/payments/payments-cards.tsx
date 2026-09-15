@@ -123,7 +123,7 @@ function Entry({ payment, href }: { payment: PaymentListRow; href: string }) {
           className="money min-w-0 text-right text-small whitespace-nowrap text-ink"
         >
           <span className="currency-mark">{currencySymbol(payment.currency)}</span>
-          {formatMinorDigits(payment.amountMinor)}
+          {formatMinorDigits(payment.amountMinor, payment.currency)}
         </span>
       </div>
     </Link>

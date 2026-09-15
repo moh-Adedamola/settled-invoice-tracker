@@ -340,7 +340,7 @@ function Invoices({ client }: { client: Awaited<ReturnType<typeof getClient>> & 
                       </span>
                       <span data-card-amount="" className="money shrink-0 text-small text-ink">
                         <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
-                        {formatMinorDigits(invoice.amountMinor)}
+                        {formatMinorDigits(invoice.amountMinor, invoice.currency)}
                       </span>
                     </div>
                   </Link>
@@ -390,7 +390,7 @@ function Invoices({ client }: { client: Awaited<ReturnType<typeof getClient>> & 
                         {invoice.outstandingMinor > 0n ? (
                           <>
                             <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
-                            {formatMinorDigits(invoice.outstandingMinor)}
+                            {formatMinorDigits(invoice.outstandingMinor, invoice.currency)}
                           </>
                         ) : (
                           <span className="text-ink-muted">—</span>
@@ -398,7 +398,7 @@ function Invoices({ client }: { client: Awaited<ReturnType<typeof getClient>> & 
                       </td>
                       <td className={`money ${cell} pr-5 text-right text-ink`}>
                         <span className="currency-mark">{currencySymbol(invoice.currency)}</span>
-                        {formatMinorDigits(invoice.amountMinor)}
+                        {formatMinorDigits(invoice.amountMinor, invoice.currency)}
                       </td>
                     </tr>
                   );
@@ -467,7 +467,7 @@ function Payments({ client }: { client: Awaited<ReturnType<typeof getClient>> & 
                       className={`money shrink-0 text-small ${counts ? 'text-ink' : 'text-ink-muted line-through'}`}
                     >
                       <span className="currency-mark">{currencySymbol(payment.currency)}</span>
-                      {formatMinorDigits(payment.amountMinor)}
+                      {formatMinorDigits(payment.amountMinor, payment.currency)}
                     </span>
                   </div>
                 </li>
@@ -525,7 +525,7 @@ function Payments({ client }: { client: Awaited<ReturnType<typeof getClient>> & 
                         }`}
                       >
                         <span className="currency-mark">{currencySymbol(payment.currency)}</span>
-                        {formatMinorDigits(payment.amountMinor)}
+                        {formatMinorDigits(payment.amountMinor, payment.currency)}
                       </td>
                     </tr>
                   );

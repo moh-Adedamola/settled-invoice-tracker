@@ -158,7 +158,7 @@ export function PaymentsTable({
                   className="money sticky right-0 z-10 h-11 border-l border-line bg-surface pr-5 pl-3 text-right text-small whitespace-nowrap text-ink group-hover:bg-row-hover"
                 >
                   <span className="currency-mark">{currencySymbol(payment.currency)}</span>
-                  {formatMinorDigits(payment.amountMinor)}
+                  {formatMinorDigits(payment.amountMinor, payment.currency)}
                 </td>
               </tr>
             );

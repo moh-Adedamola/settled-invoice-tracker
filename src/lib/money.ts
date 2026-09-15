@@ -27,13 +27,60 @@
    and `Math.round` hides it right up until the invoice that it does not.
    ========================================================================== */
 
-/** ISO 4217 minor-unit exponents for the currencies this ledger handles. */
-const MINOR_UNIT_DIGITS: Record<string, number> = { NGN: 2, USD: 2, GBP: 2 };
+/* ==========================================================================
+   Two different "decimal places", and why they must not be conflated
+   ==========================================================================
 
-/** Two is the right default: it is what every currency here uses, and a wrong
- *  guess is caught by `too-precise` rather than silently truncating. */
-export const minorUnitDigits = (currency: string): number =>
-  MINOR_UNIT_DIGITS[currency] ?? 2;
+   ## LEDGER_SCALE_DIGITS — how a value is STORED
+
+   Always 2. Every `*_minor` column in this schema is major x 100, for every
+   currency without exception. That is the convention the gateway adapters
+   normalise into: the Stripe adapter multiplies a zero-decimal amount by 100 on
+   the way in precisely so that nothing downstream has to ask what currency a
+   bigint is denominated in before it can add two of them up.
+
+   ## currencyDecimals() — how a value is WRITTEN DOWN
+
+   Varies. The yen has no subunit, so 500 yen is "500" and never "500.00"; the
+   dollar has two, so 2499 dollars is "2,499.00".
+
+   Conflating these is the bug this block exists to prevent. If display digits
+   were also used as the storage scale, a JPY amount would be stored as 500
+   rather than 50000, and every sum mixing it with a two-decimal currency would
+   be out by a factor of a hundred — in the direction where both numbers look
+   entirely plausible.
+
+   So: parse and store at LEDGER_SCALE_DIGITS, reject input finer than
+   currencyDecimals, and render at currencyDecimals.
+   ========================================================================== */
+
+/** The storage scale. Every minor value in this system is major x 100. */
+export const LEDGER_SCALE_DIGITS = 2;
+
+/**
+ * ISO 4217 currencies with no subunit, where an amount is written with no
+ * decimal point at all.
+ *
+ * This is the set that reaches this ledger through a gateway. It matches the
+ * Stripe adapter's `ZERO_DECIMAL`, and for the same reason omits ISK and UGX:
+ * both are zero-decimal in the real world, but Stripe transmits them as
+ * two-decimal values for backward compatibility, so treating them as
+ * zero-decimal here would disagree with how they were stored.
+ */
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  'BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA',
+  'PYG', 'RWF', 'VND', 'VUV', 'XAF', 'XOF', 'XPF',
+]);
+
+/**
+ * How many decimal places this currency is WRITTEN with.
+ *
+ * Two is the right default: it covers every currency this ledger bills in, and
+ * a wrong guess on input is caught by `too-precise` rather than silently
+ * truncating someone's amount.
+ */
+export const currencyDecimals = (currency: string): number =>
+  ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 0 : 2;
 
 /** A ledger that needs more than this has outgrown a single-tenant tracker. */
 const MAX_MINOR = 10n ** 15n;
@@ -64,11 +111,19 @@ export function parseDecimalToMinor(input: string, currency: string): ParsedMone
   if (trimmed.startsWith('-')) return { ok: false, reason: 'negative' };
   if (!/^\d+(\.\d*)?$/.test(trimmed)) return { ok: false, reason: 'malformed' };
 
-  const digits = minorUnitDigits(currency);
+  /*
+   * Rejected at the currency's precision, stored at the ledger's.
+   *
+   * "500.5" in JPY is not a rounding problem, it is a quantity that does not
+   * exist, so it is refused rather than silently resolved to one of the two
+   * neighbouring yen. The value that IS accepted is then padded to the ledger
+   * scale, so 500 yen stores as 50000 exactly as a gateway would have sent it.
+   */
+  const decimals = currencyDecimals(currency);
   const [whole = '', fraction = ''] = trimmed.split('.');
-  if (fraction.length > digits) return { ok: false, reason: 'too-precise' };
+  if (fraction.length > decimals) return { ok: false, reason: 'too-precise' };
 
-  const minor = BigInt(`${whole}${fraction.padEnd(digits, '0')}`);
+  const minor = BigInt(`${whole}${fraction.padEnd(LEDGER_SCALE_DIGITS, '0')}`);
   if (minor > MAX_MINOR) return { ok: false, reason: 'too-large' };
   return { ok: true, minor };
 }

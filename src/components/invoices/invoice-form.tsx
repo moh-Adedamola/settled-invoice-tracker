@@ -320,7 +320,7 @@ export function InvoiceForm({
                         total === null ? 'text-ink-muted' : 'text-ink'
                       }`}
                     >
-                      {total === null ? '—' : `${symbol}${formatMinorDigits(total)}`}
+                      {total === null ? '—' : `${symbol}${formatMinorDigits(total, currency)}`}
                     </span>
                   </div>
                 </div>
@@ -352,7 +352,7 @@ export function InvoiceForm({
               className="money text-h3 whitespace-nowrap text-ink"
             >
               <span className="currency-mark">{symbol}</span>
-              {formatMinorDigits(invoiceTotal)}
+              {formatMinorDigits(invoiceTotal, currency)}
             </span>
           </div>
         </div>

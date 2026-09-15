@@ -70,7 +70,7 @@ export function InvoiceLines({ invoice }: { invoice: InvoiceDetail }) {
                 ) : (
                   <span className="money min-w-0 truncate text-micro text-ink-muted">
                     {formatQuantityDisplay(line.quantity)} × {symbol}
-                    {formatMinorDigits(line.unitAmountMinor)}
+                    {formatMinorDigits(line.unitAmountMinor, invoice.currency)}
                   </span>
                 )}
                 {/* The figure that matters, and the aligned right edge. */}
@@ -79,7 +79,7 @@ export function InvoiceLines({ invoice }: { invoice: InvoiceDetail }) {
                   className="money shrink-0 text-small whitespace-nowrap text-ink"
                 >
                   <span className="currency-mark">{symbol}</span>
-                  {formatMinorDigits(line.lineAmountMinor)}
+                  {formatMinorDigits(line.lineAmountMinor, invoice.currency)}
                 </span>
               </div>
             </li>
@@ -94,7 +94,7 @@ export function InvoiceLines({ invoice }: { invoice: InvoiceDetail }) {
             className="money text-small whitespace-nowrap text-ink"
           >
             <span className="currency-mark">{symbol}</span>
-            {formatMinorDigits(invoice.amountMinor)}
+            {formatMinorDigits(invoice.amountMinor, invoice.currency)}
           </span>
         </div>
       </div>
@@ -135,11 +135,11 @@ export function InvoiceLines({ invoice }: { invoice: InvoiceDetail }) {
                 </td>
                 <td className={`money ${cell} text-right whitespace-nowrap text-ink-secondary`}>
                   <span className="currency-mark">{symbol}</span>
-                  {formatMinorDigits(line.unitAmountMinor)}
+                  {formatMinorDigits(line.unitAmountMinor, invoice.currency)}
                 </td>
                 <td className={`money ${cell} pr-5 text-right whitespace-nowrap text-ink`}>
                   <span className="currency-mark">{symbol}</span>
-                  {formatMinorDigits(line.lineAmountMinor)}
+                  {formatMinorDigits(line.lineAmountMinor, invoice.currency)}
                 </td>
               </tr>
             ))}
@@ -154,7 +154,7 @@ export function InvoiceLines({ invoice }: { invoice: InvoiceDetail }) {
               </td>
               <td className="money h-11 pr-5 pl-3 text-right text-small whitespace-nowrap text-ink">
                 <span className="currency-mark">{symbol}</span>
-                {formatMinorDigits(invoice.amountMinor)}
+                {formatMinorDigits(invoice.amountMinor, invoice.currency)}
               </td>
             </tr>
           </tfoot>
@@ -194,7 +194,7 @@ function Unitemised({ invoice, symbol }: { invoice: InvoiceDetail; symbol: strin
         <span className="text-small text-ink-secondary">Invoice total</span>
         <span className="money text-small whitespace-nowrap text-ink">
           <span className="currency-mark">{symbol}</span>
-          {formatMinorDigits(invoice.amountMinor)}
+          {formatMinorDigits(invoice.amountMinor, invoice.currency)}
         </span>
       </div>
 

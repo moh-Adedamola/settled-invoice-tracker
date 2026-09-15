@@ -188,7 +188,7 @@ export default async function InvoiceDetailPage({
           <Fact label="Amount">
             <span className="money whitespace-nowrap">
               <span className="currency-mark">{symbol}</span>
-              {formatMinorDigits(invoice.amountMinor)}
+              {formatMinorDigits(invoice.amountMinor, invoice.currency)}
             </span>
           </Fact>
         </dl>

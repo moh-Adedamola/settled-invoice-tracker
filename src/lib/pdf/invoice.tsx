@@ -401,7 +401,7 @@ function Money({
   return (
     <Text style={[styles.money, style ?? {}]}>
       {currencySymbol(currency)}
-      {formatMinorDigits(minor)}
+      {formatMinorDigits(minor, currency)}
     </Text>
   );
 }
@@ -479,11 +479,11 @@ function LineItemsTable({ invoice }: { invoice: InvoiceDetail }) {
           </Text>
           <Text style={[styles.moneyMuted, { width: COL.unit }]}>
             {currencySymbol(invoice.currency)}
-            {formatMinorDigits(line.unitAmountMinor)}
+            {formatMinorDigits(line.unitAmountMinor, invoice.currency)}
           </Text>
           <Text style={[styles.money, { width: COL.amount }]}>
             {currencySymbol(invoice.currency)}
-            {formatMinorDigits(line.lineAmountMinor)}
+            {formatMinorDigits(line.lineAmountMinor, invoice.currency)}
           </Text>
         </View>
       ))}
@@ -535,7 +535,7 @@ function Totals({ invoice, succeeded }: { invoice: InvoiceDetail; succeeded: Inv
           </Text>
           <Text style={styles.moneyMuted}>
             −{currencySymbol(invoice.currency)}
-            {formatMinorDigits(received)}
+            {formatMinorDigits(received, invoice.currency)}
           </Text>
         </View>
       ) : null}
@@ -549,7 +549,7 @@ function Totals({ invoice, succeeded }: { invoice: InvoiceDetail; succeeded: Inv
           ]}
         >
           {currencySymbol(invoice.currency)}
-          {formatMinorDigits(balance < 0n ? -balance : balance)}
+          {formatMinorDigits(balance < 0n ? -balance : balance, invoice.currency)}
           {balance < 0n ? ' over' : ''}
         </Text>
       </View>
@@ -584,7 +584,7 @@ function PaymentsReceived({
           </Text>
           <Text style={[styles.money, { width: 144 }]}>
             {currencySymbol(invoice.currency)}
-            {formatMinorDigits(payment.amountMinor)}
+            {formatMinorDigits(payment.amountMinor, invoice.currency)}
           </Text>
         </View>
       ))}
@@ -727,7 +727,7 @@ export function InvoiceDocument({
         {invoice.base ? (
           <Text style={styles.note}>
             Indicative equivalent: ≈{currencySymbol(invoice.base.currency)}
-            {formatMinorDigits(invoice.base.outstandingMinor)} outstanding, at the rate of{' '}
+            {formatMinorDigits(invoice.base.outstandingMinor, invoice.base.currency)} outstanding, at the rate of{' '}
             {invoice.base.rate} recorded on {formatDateFull(invoice.base.fetchedAt)}. This
             invoice is payable in {invoice.currency}; the equivalent is for reference and is
             not the amount due.

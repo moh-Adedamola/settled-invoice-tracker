@@ -58,7 +58,7 @@ export function ProviderBreakdown({ providers }: { providers: ProviderTotal[] })
                   <span className="currency-mark">
                     {currencySymbol(provider.currency)}
                   </span>
-                  {formatMinorDigits(provider.totalMinor)}
+                  {formatMinorDigits(provider.totalMinor, provider.currency)}
                 </span>
               </div>
 

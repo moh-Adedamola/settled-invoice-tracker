@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import { isReadOnly, requireUser } from '@/lib/auth/guard';
 import { getMatchCandidates, getPayment } from '@/lib/queries/payments';
 import { currencySymbol, formatDateFull, formatDateTime, formatMinorDigits } from '@/lib/format';
+import { BASE_CURRENCY } from '@/lib/queries/dashboard';
 import { PageHeader } from '@/components/shell/page-header';
 import { ScrollCue } from '@/components/ui/scroll-cue';
 import { StatusBadge, invoiceStatusKey, paymentStatusKey } from '@/components/ui/status-badge';
@@ -75,7 +76,7 @@ export default async function PaymentPage({
         title={
           <span className="money">
             <span className="currency-mark">{symbol}</span>
-            {formatMinorDigits(payment.amountMinor)}
+            {formatMinorDigits(payment.amountMinor, payment.currency)}
           </span>
         }
         actions={
@@ -135,7 +136,7 @@ export default async function PaymentPage({
             Converted at the rate stored when this payment was processed:{' '}
             <span className="money text-ink">
               <span className="currency-mark">≈₦</span>
-              {formatMinorDigits(payment.baseAmountMinor)}
+              {formatMinorDigits(payment.baseAmountMinor, BASE_CURRENCY)}
             </span>{' '}
             at <span className="money">{payment.fxRate}</span>
             {payment.fxAt ? <> on {formatDateFull(payment.fxAt)}</> : null}. That is
@@ -219,12 +220,12 @@ function MatchedInvoice({
           <p className="text-small text-ink-muted">
             <span className="money">
               {symbol}
-              {formatMinorDigits(invoice.paidMinor)}
+              {formatMinorDigits(invoice.paidMinor, invoice.currency)}
             </span>{' '}
             of{' '}
             <span className="money">
               {symbol}
-              {formatMinorDigits(invoice.amountMinor)}
+              {formatMinorDigits(invoice.amountMinor, invoice.currency)}
             </span>{' '}
             received
             {invoice.outstandingMinor > 0n ? (
@@ -232,7 +233,7 @@ function MatchedInvoice({
                 {' · '}
                 <span className="money text-ink">
                   {symbol}
-                  {formatMinorDigits(invoice.outstandingMinor)}
+                  {formatMinorDigits(invoice.outstandingMinor, invoice.currency)}
                 </span>{' '}
                 still owed
               </>
@@ -276,11 +277,11 @@ function MatchedInvoice({
                     }
                   >
                     {symbol}
-                    {formatMinorDigits(sibling.amountMinor)}
+                    {formatMinorDigits(sibling.amountMinor, invoice.currency)}
                   </span>
                   <span className="block text-micro text-ink-muted">
                     {symbol}
-                    {formatMinorDigits(sibling.balanceAfterMinor)} left
+                    {formatMinorDigits(sibling.balanceAfterMinor, invoice.currency)} left
                   </span>
                 </span>
               </div>
@@ -339,12 +340,12 @@ function MatchedInvoice({
                       }
                     >
                       {symbol}
-                      {formatMinorDigits(sibling.amountMinor)}
+                      {formatMinorDigits(sibling.amountMinor, invoice.currency)}
                     </span>
                   </td>
                   <td className={`money ${cell} text-right text-ink-secondary`}>
                     {symbol}
-                    {formatMinorDigits(sibling.balanceAfterMinor)}
+                    {formatMinorDigits(sibling.balanceAfterMinor, invoice.currency)}
                   </td>
                   <td className={`money ${cell} text-ink-muted`}>
                     {sibling.id === payment.id ? (

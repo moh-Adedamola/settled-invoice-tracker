@@ -105,7 +105,7 @@ export function OverdueTable({ invoices }: { invoices: OverdueInvoice[] }) {
                   <span className="currency-mark">
                     {currencySymbol(invoice.currency)}
                   </span>
-                  {formatMinorDigits(invoice.outstandingMinor)}
+                  {formatMinorDigits(invoice.outstandingMinor, invoice.currency)}
                 </td>
               </tr>
             ))}

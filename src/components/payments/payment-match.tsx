@@ -16,7 +16,7 @@ const primary = `${button} bg-accent text-accent-fg ring-inverse hover:bg-accent
 const money = (minor: bigint, currency: string) => (
   <span className="money whitespace-nowrap">
     <span className="currency-mark">{currencySymbol(currency)}</span>
-    {formatMinorDigits(minor)}
+    {formatMinorDigits(minor, currency)}
   </span>
 );
 

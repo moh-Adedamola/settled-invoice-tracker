@@ -106,7 +106,7 @@ export function UnmatchedQueue({
                     <span className="currency-mark">
                       {currencySymbol(payment.currency)}
                     </span>
-                    {formatMinorDigits(payment.amountMinor)}
+                    {formatMinorDigits(payment.amountMinor, payment.currency)}
                   </td>
                   {readOnly ? null : (
                     <td className="h-11 py-0 pr-5 pl-3 text-right">

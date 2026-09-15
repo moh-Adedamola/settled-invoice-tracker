@@ -117,7 +117,7 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
                       <span className="currency-mark">
                         {currencySymbol(payment.currency)}
                       </span>
-                      {formatMinorDigits(payment.amountMinor)}
+                      {formatMinorDigits(payment.amountMinor, payment.currency)}
                     </span>
                   </div>
 
@@ -132,7 +132,7 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
                       className="money shrink-0 text-small whitespace-nowrap text-ink-secondary"
                     >
                       <span className="currency-mark">{symbol}</span>
-                      {formatMinorDigits(payment.balanceAfterMinor)}
+                      {formatMinorDigits(payment.balanceAfterMinor, invoice.currency)}
                     </span>
                   </div>
 
@@ -205,11 +205,11 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceDetail }) {
                       <span className="currency-mark">
                         {currencySymbol(payment.currency)}
                       </span>
-                      {formatMinorDigits(payment.amountMinor)}
+                      {formatMinorDigits(payment.amountMinor, payment.currency)}
                     </td>
                     <td className={`money ${cell} text-right text-ink-secondary`}>
                       <span className="currency-mark">{symbol}</span>
-                      {formatMinorDigits(payment.balanceAfterMinor)}
+                      {formatMinorDigits(payment.balanceAfterMinor, invoice.currency)}
                     </td>
                     {/* Mono, because a provider reference is a string someone
                         pastes into a support ticket and has to read character

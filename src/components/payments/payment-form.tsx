@@ -211,7 +211,7 @@ export function ManualPaymentForm({
             {eligible.map((invoice) => (
               <option key={invoice.id} value={invoice.id}>
                 {invoice.number} — {currencySymbol(invoice.currency)}
-                {formatMinorDigits(invoice.outstandingMinor)} outstanding
+                {formatMinorDigits(invoice.outstandingMinor, invoice.currency)} outstanding
               </option>
             ))}
           </select>

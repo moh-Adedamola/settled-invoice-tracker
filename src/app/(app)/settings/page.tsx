@@ -138,7 +138,9 @@ function GatewayPanel({
             <div className="flex min-w-0 flex-col gap-1">
               <span className="text-small text-ink">{gateway.label}</span>
               <span className="money text-micro text-ink-muted">
-                {gateway.credentialEnvVar}
+                {[...gateway.webhookEnvVars, ...gateway.apiEnvVars]
+                  .filter((v, i, all) => all.indexOf(v) === i)
+                  .join(' · ')}
                 {gateway.paymentCount > 0 ? (
                   <span className="text-ink-secondary">
                     {' · '}
@@ -152,15 +154,27 @@ function GatewayPanel({
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <PresenceMark
                 ok={gateway.registered}
-                yes="Adapter registered"
+                yes="Adapter built"
                 no="No adapter"
-                explainNo="Webhooks for this provider are refused with a 404."
+                explainNo="No code exists for this provider."
+              />
+              {/*
+                Webhooks and reconciliation are marked separately because they
+                need different credentials — Stripe verifies with a `whsec_`
+                endpoint secret and sweeps with an `sk_` API key. One tick for
+                both would call a Stripe install with only half of them ready.
+              */}
+              <PresenceMark
+                ok={gateway.webhookReady}
+                yes="Webhooks on"
+                no="Webhooks off"
+                explainNo="Without its signing secret this provider's webhook URL answers 404."
               />
               <PresenceMark
-                ok={gateway.credentialPresent}
-                yes="Key present"
-                no="Key absent"
-                explainNo="Every webhook from this provider will fail verification."
+                ok={gateway.apiReady}
+                yes="Sweep on"
+                no="Sweep off"
+                explainNo="Reconciliation skips this provider, so a lost webhook stays lost."
               />
             </div>
           </li>

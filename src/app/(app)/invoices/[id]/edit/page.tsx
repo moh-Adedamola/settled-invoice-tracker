@@ -51,7 +51,7 @@ export default async function EditInvoicePage({
             <p className="mt-2 text-small text-ink-secondary">
               It was marked as sent, so the client already has a copy showing{' '}
               <span className="money whitespace-nowrap">
-                {formatMinorDigits(invoice.amountMinor)} {invoice.currency}
+                {formatMinorDigits(invoice.amountMinor, invoice.currency)} {invoice.currency}
               </span>
               . Rewriting it here would leave two different documents with the same
               number. Void it and issue a replacement, or raise a credit note.
@@ -99,7 +99,7 @@ export default async function EditInvoicePage({
               quantity: line.quantity,
               // Grouped, matching what the field shows while typing. The
               // parser strips separators, so this round-trips exactly.
-              unitAmount: formatMinorDigits(line.unitAmountMinor),
+              unitAmount: formatMinorDigits(line.unitAmountMinor, invoice.currency),
             })),
           }}
         />

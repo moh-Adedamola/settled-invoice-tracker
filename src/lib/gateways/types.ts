@@ -108,6 +108,23 @@ export interface GatewayAdapter {
   id: PaymentProvider;
 
   /**
+   * The environment variables this adapter needs, split by what they unlock.
+   *
+   * Declared per adapter rather than in one central map because only the
+   * adapter knows. Stripe is the case that proves it: verifying a webhook needs
+   * the `whsec_` endpoint secret while sweeping needs the `sk_` API key, and
+   * neither implies the other. A single "is this gateway configured" flag would
+   * report Stripe as ready when it can only do half its job.
+   *
+   * `webhook` gates the intake route — see `getAdapter`. `api` gates the
+   * reconciliation sweep.
+   */
+  credentials: {
+    webhook: string[];
+    api: string[];
+  };
+
+  /**
    * Constant-time signature check against the **raw** body.
    *
    * Must not throw, and must fail closed: a missing secret, a missing header,
