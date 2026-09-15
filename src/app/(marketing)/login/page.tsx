@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { getCurrentSession } from '@/lib/auth/guard';
+import { ThemeToggle } from '@/components/shell/theme-toggle';
 
 import { LoginForm } from './login-form';
 
@@ -30,6 +31,13 @@ export default async function LoginPage() {
 
         <div className="rounded-md border border-line bg-surface-raised p-6 shadow-sm">
           <LoginForm />
+        </div>
+
+        {/* Below the card, not over it: this screen's job is the form, and a
+            control floated into the corner competes with it for the one thing
+            the reader came here to do. */}
+        <div className="mt-6 flex justify-center">
+          <ThemeToggle />
         </div>
 
         <p className="mt-6 text-center text-small text-ink-muted">

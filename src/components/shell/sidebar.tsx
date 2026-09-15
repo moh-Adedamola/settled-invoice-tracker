@@ -81,9 +81,16 @@ const NAV: NavItem[] = [
 
 export function Sidebar({
   dashboardHref,
+  homeHref,
   anonymous = false,
 }: {
   dashboardHref: string;
+  /**
+   * Where the wordmark goes. See the note on the mark itself — it is the
+   * dashboard for a signed-in user and the landing page for a visitor, and the
+   * layout decides because only it knows which one is reading.
+   */
+  homeHref: string;
   anonymous?: boolean;
 }) {
   const pathname = usePathname();
@@ -114,13 +121,47 @@ export function Sidebar({
         data-collapsed={collapsed ? 'true' : 'false'}
         className="hidden shrink-0 flex-col border-r border-line bg-surface-raised min-[900px]:flex min-[900px]:w-[60px] xl:w-[248px] xl:data-[collapsed=true]:w-[60px]"
       >
-        <div className="flex h-[60px] items-center border-b border-line-subtle px-4">
-          <span className="text-h3 text-ink">S</span>
-          <span
-            className={`text-h3 text-ink ${collapsed ? 'hidden' : 'hidden xl:inline'}`}
+        {/*
+          The wordmark is the way out, and it did not used to be one.
+
+          A visitor arriving from the landing page had no route back: the shell
+          renders no home link, so /demo was a room with no door. The mark is
+          where everyone already looks for that door.
+
+          WHERE it goes depends on who is reading, which is why the href is a
+          prop rather than a constant:
+
+            signed out  ->  '/'           the landing page IS their home, and
+                                          the only way back out of the demo
+            signed in   ->  '/dashboard'  the app's home
+
+          Sending a signed-in user to the landing page would drop them out of
+          their books and into a sales page for the product they are already
+          inside — one that opens with an entrance animation and a "Sign in"
+          call to action. The convention every app shell follows is that the
+          mark means "the home of this app", and mid-session that is not
+          marketing.
+
+          `aria-label` spells the name out because the visible text is split
+          across two spans so the collapsed rail can show just the S, and a
+          screen reader would otherwise announce it as two fragments.
+        */}
+        <div className="flex h-[60px] items-center border-b border-line-subtle px-2">
+          <Link
+            href={homeHref}
+            aria-label="Settled — home"
+            className="flex h-9 items-center rounded-sm px-2 transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
           >
-            ettled
-          </span>
+            <span aria-hidden="true" className="text-h3 text-ink">
+              S
+            </span>
+            <span
+              aria-hidden="true"
+              className={`text-h3 text-ink ${collapsed ? 'hidden' : 'hidden xl:inline'}`}
+            >
+              ettled
+            </span>
+          </Link>
         </div>
 
         <ul className="flex flex-1 flex-col gap-0.5 p-2">

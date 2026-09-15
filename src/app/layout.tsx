@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 /**
  * App shell loads two families only. Newsreader is scoped to the marketing
@@ -49,11 +50,34 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
+    /*
+      No `data-theme` here on purpose.
+
+      The attribute is now the reader's, not ours. Its absence resolves to the
+      base palette — light, ledger paper — and lets the `prefers-color-scheme`
+      block in globals.css apply, which is the "system" state of the toggle.
+      Hardcoding `dark` here is what made that media query dead code.
+    */
     <html
       lang="en"
-      data-theme="dark"
       className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/*
+          Before first paint, not after hydration.
+
+          A stored preference applied by React lands after the page has already
+          painted, so every navigation flashes the default theme and then
+          corrects itself. This stamps the attribute synchronously in the head,
+          which is the one case where a render-blocking script is the right
+          answer. See `lib/theme.ts` for why it is this small and why it cannot
+          throw.
+        */}
+        <script
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

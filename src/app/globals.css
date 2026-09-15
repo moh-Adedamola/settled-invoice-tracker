@@ -6,8 +6,15 @@
    certificates) and the ruled ledger book. Ink ground, copper accent.
    Full rationale: docs/design-system.md
 
-   Dark is the default. Light is opt-in via [data-theme="light"], or via the
-   OS preference when the user has not chosen explicitly.
+   LIGHT is the default — ledger paper, which is what money software has
+   looked like for four hundred years and what someone with no stored
+   preference and no OS preference should get.
+
+   Dark is opt-in via [data-theme="dark"], or via the OS preference when the
+   reader has expressed no explicit choice. The toggle's third state, "system",
+   works by REMOVING the attribute so the media query below applies again —
+   which is why that rule mirrors the dark block rather than the theme being
+   resolved to a literal in JavaScript.
 
    Hex is the source of truth: every value below was measured for WCAG contrast
    and for deuteranopia/protanopia separation as it actually renders in sRGB.
@@ -15,6 +22,82 @@
    ========================================================================== */
 
 :root {
+  color-scheme: light;
+
+  --bg-base: #f9f8f5;      /* ledger paper, not white */
+  --bg-inset: #f0efeb;
+  --bg-raised: #fdfdfb;
+  --bg-overlay: #ffffff;
+
+  --fg-primary: #192029;   /* 15.45:1 on base */
+  --fg-body: #192029;      /* dark-on-light does not halate; no dimming needed */
+  --fg-secondary: #4c535d; /*  7.32:1 on base */
+  --fg-muted: #6b727a;     /*  4.58:1 on base */
+
+  --line-subtle: #d9d6cf;  /* 1.37:1 */
+  --line-default: #d3d1cb;
+  --line-strong: #8d8a83;  /* 3.24:1 */
+
+  --accent: #9a541b;        /* 5.41:1 on base */
+  --accent-hover: #87470f;
+  --accent-active: #77400c;
+  --accent-subtle: #faeede;
+  --accent-fg: #fdfdfb;     /* 5.64:1 — paper sits on a copper fill */
+  --row-hover: #eae8e2;     /* 1.15:1 — light themes cannot reach the dark
+                               theme's 1.40; the text anchors the row instead */
+
+  --status-paid-fg: #07553f;
+  --status-paid-bg: #dcf6ec;
+  --status-paid-line: #8dc9b4;
+
+  --status-pending-fg: #0f69a4;
+  --status-pending-bg: #dcf0fb;
+  --status-pending-line: #93c2e0;
+
+  --status-partial-fg: #2f2903;
+  --status-partial-bg: #f4f1de;
+  --status-partial-line: #d6d2ba;
+
+  --status-overdue-fg: #846500;
+  --status-overdue-bg: #fbefd0;
+  --status-overdue-line: #d3b675;
+
+  --status-failed-fg: #9a0a2c;
+  --status-failed-bg: #fde7ea;
+  --status-failed-line: #e2949f;
+
+  --status-refunded-fg: #622c91;
+  --status-refunded-bg: #f2e9fb;
+  --status-refunded-line: #bfa0da;
+
+  --status-draft-fg: #3e5873;
+  --status-draft-bg: #e9eef4;
+  --status-draft-line: #a8b6c6;
+
+  --status-void-fg: #646d77;
+  --status-void-bg: #eef0f2;
+  --status-void-line: #bcc1c6;
+
+  --chart-stripe: #6d54b7;
+  --chart-paystack: #00829f;
+  --chart-flutterwave: #ad7227;
+  --chart-manual: #40474f;
+  --chart-positive: #07553f;
+  --chart-negative: #d05a63;
+  --chart-grid: #e8e6e1;
+  --chart-axis: #6b727a;
+
+  /* Theme-independent: geometry, not colour. Defined once in the base rather
+     than per theme — they lived in the old dark :root only because that block
+     WAS the base, and inverting the default would have left them undefined on
+     paper. A dashed partial bar is dashed in both themes. */
+  --chart-partial-opacity: 0.42;
+  --chart-partial-dash: 4 3;
+}
+
+/* Explicit light choice wins over everything. */
+/* Explicit dark choice wins over everything. */
+[data-theme="dark"] {
   color-scheme: dark;
 
   /* -- surfaces ---------------------------------------------------------- */
@@ -99,146 +182,98 @@
   --chart-negative: #fd9195;
   --chart-grid: #242c36;
   --chart-axis: #7d868f;
-  /* Partial current month: same hue, half weight, hatched. Never a solid bar. */
-  --chart-partial-opacity: 0.42;
-  --chart-partial-dash: 4 3;
 }
 
-/* Explicit light choice wins over everything. */
-[data-theme="light"] {
-  color-scheme: light;
+/* No explicit choice + OS prefers dark. Mirrors [data-theme="dark"] exactly;
+   kept as a separate rule so the toggle can always override it, and so the
+   "system" state of the toggle has something to fall through TO — it works by
+   removing the attribute, not by writing a resolved value. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
 
-  --bg-base: #f9f8f5;      /* ledger paper, not white */
-  --bg-inset: #f0efeb;
-  --bg-raised: #fdfdfb;
-  --bg-overlay: #ffffff;
+    /* -- surfaces ---------------------------------------------------------- */
+    --bg-base: #0e1319;      /* page ground — printing ink, not neutral black */
+    --bg-inset: #0b1015;     /* wells: table body, code, input interiors      */
+    --bg-raised: #161c24;    /* cards, sidebar, sticky headers                */
+    --bg-overlay: #1d242e;   /* modals, popovers, dropdowns                   */
 
-  --fg-primary: #192029;   /* 15.45:1 on base */
-  --fg-body: #192029;      /* dark-on-light does not halate; no dimming needed */
-  --fg-secondary: #4c535d; /*  7.32:1 on base */
-  --fg-muted: #6b727a;     /*  4.58:1 on base */
+    /* -- foreground -------------------------------------------------------- */
+    --fg-primary: #ebeff4;   /* 16.15:1 — headings, KPI figures, large text */
+    --fg-body: #d3dbe3;      /* 13.33:1 — table cells and running text at 13-14px.
+                                Deliberately below fg-primary: 16:1 is 87% of the
+                                maximum this ground allows, and dense small text at
+                                that level halates over a long read. */
+    --fg-secondary: #aab2ba; /*  8.69:1 on base */
+    --fg-muted: #8a939c;     /*  5.98 base / 5.49 raised / 5.01 overlay.
+                                Raised from #7d868f, which cleared 4.5:1 only
+                                against bg-base and failed as placeholder text on
+                                an overlay (4.23:1). */
 
-  --line-subtle: #d9d6cf;  /* 1.37:1 */
-  --line-default: #d3d1cb;
-  --line-strong: #8d8a83;  /* 3.24:1 */
+    /* -- lines ------------------------------------------------------------- */
+    --line-subtle: #2f3843;  /* 1.57:1 — row rules, dividers. At the old #242c36
+                                (1.32:1) the rule dissolved over a long column. */
+    --line-default: #30363d; /* card and container edges */
+    --line-strong: #6d757f;  /* 4.00 base / 3.67 raised / 3.35 overlay.
+                                Raised from #5f6771, which cleared 3:1 only on
+                                bg-base (3.26) and failed on bg-raised (2.99) and
+                                bg-overlay (2.73) - i.e. on every container a form
+                                actually sits in. REQUIRED for control boundaries. */
 
-  --accent: #9a541b;        /* 5.41:1 on base */
-  --accent-hover: #87470f;
-  --accent-active: #77400c;
-  --accent-subtle: #faeede;
-  --accent-fg: #fdfdfb;     /* 5.64:1 — paper sits on a copper fill */
-  --row-hover: #eae8e2;     /* 1.15:1 — light themes cannot reach the dark
-                               theme's 1.40; the text anchors the row instead */
+    /* -- accent: copper ---------------------------------------------------- */
+    --accent: #d7935e;        /* 7.31:1 on base */
+    --accent-hover: #e8a675;
+    --accent-active: #c4824f;
+    --accent-subtle: #33220f; /* tinted ground for selected rows / nav */
+    --row-hover: #243040;     /* 1.40:1 — NOT bg-raised, which is only 1.09:1 and
+                                 too weak to track which row you are on. */
+    --accent-fg: #0e1319;     /* 7.31:1 — ink sits on a copper fill */
 
-  --status-paid-fg: #07553f;
-  --status-paid-bg: #dcf6ec;
-  --status-paid-line: #8dc9b4;
+    /* -- status: fg / subtle bg / border ----------------------------------- */
+    --status-paid-fg: #87e8c4;
+    --status-paid-bg: #0d2a20;
+    --status-paid-line: #2f6353;
 
-  --status-pending-fg: #0f69a4;
-  --status-pending-bg: #dcf0fb;
-  --status-pending-line: #93c2e0;
+    --status-pending-fg: #5699cf;
+    --status-pending-bg: #102638;
+    --status-pending-line: #2e5f84;
 
-  --status-partial-fg: #2f2903;
-  --status-partial-bg: #f4f1de;
-  --status-partial-line: #d6d2ba;
+    /* partial: 4.59:1 on its own ground, 5.51:1 on base. Adding an eighth state
+       leaves the CVD floor exactly where the seven-state palette had it
+       (8.5 deutan / 8.4 protan) - partial is never the binding pair. */
+    --status-partial-fg: #9d8c19;
+    --status-partial-bg: #2a2400;
+    --status-partial-line: #51480f;
 
-  --status-overdue-fg: #846500;
-  --status-overdue-bg: #fbefd0;
-  --status-overdue-line: #d3b675;
+    --status-overdue-fg: #fed261;
+    --status-overdue-bg: #2f2200;
+    --status-overdue-line: #7a5c14;
 
-  --status-failed-fg: #9a0a2c;
-  --status-failed-bg: #fde7ea;
-  --status-failed-line: #e2949f;
+    --status-failed-fg: #fd9195;
+    --status-failed-bg: #3a181a;
+    --status-failed-line: #8a4046;
 
-  --status-refunded-fg: #622c91;
-  --status-refunded-bg: #f2e9fb;
-  --status-refunded-line: #bfa0da;
+    --status-refunded-fg: #ddc1ff;
+    --status-refunded-bg: #2a1d38;
+    --status-refunded-line: #6b4d94;
 
-  --status-draft-fg: #3e5873;
-  --status-draft-bg: #e9eef4;
-  --status-draft-line: #a8b6c6;
+    --status-draft-fg: #95b2d1;
+    --status-draft-bg: #1d2530;
+    --status-draft-line: #44546a;
 
-  --status-void-fg: #646d77;
-  --status-void-bg: #eef0f2;
-  --status-void-line: #bcc1c6;
+    --status-void-fg: #818b96;
+    --status-void-bg: #1b1f24;
+    --status-void-line: #3c444d;
 
-  --chart-stripe: #6d54b7;
-  --chart-paystack: #00829f;
-  --chart-flutterwave: #ad7227;
-  --chart-manual: #40474f;
-  --chart-positive: #07553f;
-  --chart-negative: #d05a63;
-  --chart-grid: #e8e6e1;
-  --chart-axis: #6b727a;
-}
-
-/* No explicit choice + OS prefers light. Mirrors [data-theme="light"] exactly;
-   kept as a separate rule so the toggle can always override it. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]):not([data-theme="light"]) {
-    color-scheme: light;
-
-    --bg-base: #f9f8f5;
-    --bg-inset: #f0efeb;
-    --bg-raised: #fdfdfb;
-    --bg-overlay: #ffffff;
-
-    --fg-primary: #192029;
-    --fg-body: #192029;
-    --fg-secondary: #4c535d;
-    --fg-muted: #6b727a;
-
-    --line-subtle: #d9d6cf;
-    --line-default: #d3d1cb;
-    --line-strong: #8d8a83;
-
-    --accent: #9a541b;
-    --accent-hover: #87470f;
-    --accent-active: #77400c;
-    --accent-subtle: #faeede;
-    --accent-fg: #fdfdfb;
-    --row-hover: #eae8e2;
-
-    --status-paid-fg: #07553f;
-    --status-paid-bg: #dcf6ec;
-    --status-paid-line: #8dc9b4;
-
-    --status-pending-fg: #0f69a4;
-    --status-pending-bg: #dcf0fb;
-    --status-pending-line: #93c2e0;
-
-    --status-partial-fg: #2f2903;
-    --status-partial-bg: #f4f1de;
-    --status-partial-line: #d6d2ba;
-
-    --status-overdue-fg: #846500;
-    --status-overdue-bg: #fbefd0;
-    --status-overdue-line: #d3b675;
-
-    --status-failed-fg: #9a0a2c;
-    --status-failed-bg: #fde7ea;
-    --status-failed-line: #e2949f;
-
-    --status-refunded-fg: #622c91;
-    --status-refunded-bg: #f2e9fb;
-    --status-refunded-line: #bfa0da;
-
-    --status-draft-fg: #3e5873;
-    --status-draft-bg: #e9eef4;
-    --status-draft-line: #a8b6c6;
-
-    --status-void-fg: #646d77;
-    --status-void-bg: #eef0f2;
-    --status-void-line: #bcc1c6;
-
-    --chart-stripe: #6d54b7;
-    --chart-paystack: #00829f;
-    --chart-flutterwave: #ad7227;
-    --chart-manual: #40474f;
-    --chart-positive: #07553f;
-    --chart-negative: #d05a63;
-    --chart-grid: #e8e6e1;
-    --chart-axis: #6b727a;
+    /* -- chart ------------------------------------------------------------- */
+    --chart-stripe: #a793f4;
+    --chart-paystack: #57c8e6;
+    --chart-flutterwave: #f3ae5f;
+    --chart-manual: #808a95;
+    --chart-positive: #87e8c4;
+    --chart-negative: #fd9195;
+    --chart-grid: #242c36;
+    --chart-axis: #7d868f;
   }
 }
 
@@ -382,9 +417,9 @@
   /* -- elevation --------------------------------------------------------
      Dark lifts with background + border; light lifts with shadow.
      Both define shadows so overlays read as detached in either theme. */
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
-  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.36), 0 2px 4px -2px rgb(0 0 0 / 0.28);
-  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.5), 0 4px 12px -4px rgb(0 0 0 / 0.34);
+  --shadow-sm: 0 1px 2px rgb(25 32 41 / 0.06);
+  --shadow-md: 0 4px 12px -2px rgb(25 32 41 / 0.10), 0 2px 4px -2px rgb(25 32 41 / 0.06);
+  --shadow-lg: 0 16px 40px -8px rgb(25 32 41 / 0.14), 0 4px 12px -4px rgb(25 32 41 / 0.08);
 
   /* -- motion ----------------------------------------------------------- */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
@@ -392,18 +427,19 @@
   --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-/* Light lifts with a real shadow; dark keeps the near-black one defined above. */
-[data-theme="light"] {
-  --shadow-sm: 0 1px 2px rgb(25 32 41 / 0.06);
-  --shadow-md: 0 4px 12px -2px rgb(25 32 41 / 0.10), 0 2px 4px -2px rgb(25 32 41 / 0.06);
-  --shadow-lg: 0 16px 40px -8px rgb(25 32 41 / 0.14), 0 4px 12px -4px rgb(25 32 41 / 0.08);
+/* Light lifts with a real shadow (the base, above); dark drops to a near-black
+   one, because a grey shadow on an ink ground reads as fog rather than lift. */
+[data-theme="dark"] {
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.36), 0 2px 4px -2px rgb(0 0 0 / 0.28);
+  --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.5), 0 4px 12px -4px rgb(0 0 0 / 0.34);
 }
 
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]):not([data-theme="light"]) {
-    --shadow-sm: 0 1px 2px rgb(25 32 41 / 0.06);
-    --shadow-md: 0 4px 12px -2px rgb(25 32 41 / 0.10), 0 2px 4px -2px rgb(25 32 41 / 0.06);
-    --shadow-lg: 0 16px 40px -8px rgb(25 32 41 / 0.14), 0 4px 12px -4px rgb(25 32 41 / 0.08);
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
+    --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.36), 0 2px 4px -2px rgb(0 0 0 / 0.28);
+    --shadow-lg: 0 16px 40px -8px rgb(0 0 0 / 0.5), 0 4px 12px -4px rgb(0 0 0 / 0.34);
   }
 }
 

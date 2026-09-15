@@ -3,6 +3,8 @@ import Link from 'next/link';
 
 import { getSettings } from '@/lib/queries/settings';
 
+import { ThemeToggle } from '@/components/shell/theme-toggle';
+
 import { CornerRosette, EngravedWave, GuillocheRosette } from './engraving';
 
 /* ==========================================================================
@@ -98,19 +100,29 @@ function Masthead() {
   return (
     <header className="relative z-20 border-b border-line-subtle/60">
       <div className="marketing-container flex items-center justify-between py-5">
-        <p
-          className="enter-expressive font-display text-h3 text-ink md:text-h2"
+        {/* Standard behaviour, and it was missing: a wordmark is a link home
+            even on the page it points at. */}
+        <Link
+          href="/"
+          className="enter-expressive rounded-xs font-display text-h3 text-ink md:text-h2"
           style={enter(0)}
         >
           Settled
-        </p>
-        <Link
-          href="/login"
-          className="enter-expressive rounded-xs text-small text-ink-secondary underline-offset-4 transition-colors duration-[var(--duration-fast)] ease-standard hover:text-ink hover:underline"
-          style={enter(90)}
-        >
-          Sign in
         </Link>
+        {/*
+          A visitor's first impression should not be locked to whichever theme
+          we happened to pick. This page is the one many readers see first, so
+          the control belongs here rather than only behind a sign-in.
+        */}
+        <div className="enter-expressive flex items-center gap-4" style={enter(90)}>
+          <ThemeToggle />
+          <Link
+            href="/login"
+            className="rounded-xs text-small text-ink-secondary underline-offset-4 transition-colors duration-[var(--duration-fast)] ease-standard hover:text-ink hover:underline"
+          >
+            Sign in
+          </Link>
+        </div>
       </div>
     </header>
   );

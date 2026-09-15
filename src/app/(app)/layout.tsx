@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { getCurrentSession } from '@/lib/auth/guard';
 import { Sidebar } from '@/components/shell/sidebar';
+import { ThemeToggle } from '@/components/shell/theme-toggle';
 
 import { logout } from './actions';
 
@@ -22,11 +23,27 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-full flex-1 flex-col min-[900px]:flex-row">
       <Sidebar
         dashboardHref={anonymous ? '/demo' : '/dashboard'}
+        homeHref={anonymous ? '/' : '/dashboard'}
         anonymous={anonymous}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/*
+          The theme control sits in the shell header, with the other per-viewer
+          affordances — who you are, and signing out. Theme is the same kind of
+          thing: a property of the reader, not of the data.
+
+          Not the sidebar foot, where §8's only other persisted toggle
+          (collapse) lives. That slot is `xl:block` and the rail itself is
+          hidden below 900px, so a reader on a 1100px laptop or a phone would
+          have no toggle at all. The header is the only chrome present at every
+          width.
+
+          §6: `gap-2` inside the cluster, which is the "between related
+          controls" step, against the header's `gap-4` between clusters.
+        */}
         <header className="flex h-[52px] shrink-0 items-center justify-end gap-4 border-b border-line-subtle px-6">
+          <ThemeToggle />
           {anonymous ? (
             <Link
               href="/login"
@@ -66,6 +83,21 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             </span>
             You are viewing demo data, which resets nightly. Nothing here is a
             real client or a real payment.
+            {/*
+              Two ways out, because this banner is the only chrome a visitor on
+              a narrow screen sees — the <900px nav strip carries no wordmark,
+              so the sidebar's home link does not exist for them.
+
+              "What Settled does" rather than "Back": a demo link gets shared,
+              and the reader who opens it may never have been to the landing
+              page to go back to.
+            */}
+            <Link
+              href="/"
+              className="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+            >
+              What Settled does
+            </Link>
             <Link
               href="/login"
               className="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"

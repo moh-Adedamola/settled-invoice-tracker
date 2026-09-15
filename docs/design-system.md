@@ -77,8 +77,21 @@ ledgers. The rule is written out in full at the top of `src/lib/auth/guard.ts`, 
 
 ### 3.1 Semantic core
 
-Dark is default. Light is opt-in via `[data-theme="light"]`, falling back to the OS
-preference when the user has not chosen.
+**Light is the default.** Ledger paper is what money software has looked like for four
+hundred years, and it is what someone with no stored preference and no OS preference
+should get. Dark is opt-in via `[data-theme="dark"]`, falling back to the OS preference
+when the reader has expressed no explicit choice.
+
+That ordering is structural, not a toggle in a config: the bare `:root` block carries the
+LIGHT values, `[data-theme="dark"]` overrides them, and a `prefers-color-scheme: dark`
+media query guarded on `:root:not([data-theme="light"]):not([data-theme="dark"])` mirrors
+the dark block for readers who have chosen neither.
+
+**Two tokens are theme-independent and live only in the base:**
+`--chart-partial-opacity` and `--chart-partial-dash`. They are geometry rather than
+colour — a dashed partial bar is dashed in both themes — and they sat in the old dark
+`:root` only because that block happened to be the base. Inverting the default without
+moving them would have left them undefined on paper.
 
 | Role | Dark | Light | Use |
 | --- | --- | --- | --- |
@@ -762,6 +775,39 @@ are not interactive.
 The 3px left rule is the scannable element and is **not optional** — see §3.4. Without
 it the badge column collapses to ΔE 2.0 (dark) / 0.3 (light). With the marker, it is
 what makes "show me everything overdue" a glance rather than a read.
+
+### Theme toggle
+
+Three states — light, dark, **system** — as a segmented control, not a cycling button. A
+single button that walks light → dark → system shows one icon and tells the reader
+neither which state they are in nor what the next press does. Three segments make the
+current state visible and any state one press away.
+
+**`system` is an absence, not a value.** Choosing it REMOVES `data-theme` so the
+`prefers-color-scheme` rule applies again. Resolving system to a literal in JavaScript and
+stamping that would look identical on load and be wrong by evening: a reader whose OS
+flips to dark at sunset would keep whatever we resolved that morning until they reloaded.
+The media query in §3 exists to be fallen through to, and before this control shipped it
+was dead code — the root layout hardcoded `data-theme="dark"`, so nothing ever matched it.
+
+**Applied before first paint.** A preference applied by React lands after hydration, which
+is after the page has painted: every navigation would flash the default theme and then
+correct itself. A minimal inline script in the document head reads storage and stamps the
+attribute synchronously. It is the one place in this codebase where a render-blocking
+script is the right answer, and it is wrapped in `try/catch` because `localStorage`
+throws rather than returning null when site data is blocked — an exception there happens
+before `<body>` exists and would leave a blank page rather than an unstyled one.
+
+Read through `useSyncExternalStore`, like the sidebar collapse (§8), so two tabs stay in
+step via the `storage` event and no state is mirrored into an effect. The server snapshot
+is `system`, because the server cannot read a browser's storage and must not guess.
+
+**Placement: the shell header**, beside the account affordances — theme is a property of
+the reader, like who they are signed in as. Not the sidebar foot where §8's other
+persisted toggle lives: that slot is `xl:block` and the rail is hidden below 900px, so a
+reader on a 1100px laptop or a phone would have no control at all. The landing page and
+login carry it too — a visitor's first impression should not be locked to whichever theme
+we happened to pick.
 
 ### Presence marks
 
