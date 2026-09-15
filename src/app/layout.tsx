@@ -21,8 +21,28 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+/**
+ * `metadataBase` resolves the Open Graph image to an absolute URL, which every
+ * scraper requires and none will guess. Taken from the deploy's own origin when
+ * it publishes one, so a preview deployment advertises itself rather than
+ * production.
+ *
+ * `title.template` lets each page set only its own name. The landing page is the
+ * exception and sets an absolute title, because "Settled — Settled" is not a
+ * thing anyone should read.
+ */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'http://localhost:3000');
+
 export const metadata: Metadata = {
-  title: "Settled",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Settled",
+    template: "%s",
+  },
   description:
     "Invoice and payment tracking across Stripe, Paystack and Flutterwave.",
 };

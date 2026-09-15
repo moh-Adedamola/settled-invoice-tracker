@@ -35,7 +35,7 @@ export default async function LoginPage() {
         <p className="mt-6 text-center text-small text-ink-muted">
           Just looking around?{' '}
           <Link
-            href="/"
+            href="/demo"
             className="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
           >
             View the public demo

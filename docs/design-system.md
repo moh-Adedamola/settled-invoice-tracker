@@ -388,7 +388,8 @@ made literal, and it is instantly recognisable.
 
 | Token | Size | Line height | Weight | Tracking | Family | Use |
 | --- | --- | --- | --- | --- | --- | --- |
-| `text-display` | 56px | 1.04 | 400 | −0.022em | Display | Landing hero only |
+| `text-hero` | **clamp(2.5rem, 7.2vw, 5rem)** | 1.02 | 400 | −0.025em | Display | Landing hero only — the one fluid step |
+| `text-display` | 56px | 1.04 | 400 | −0.022em | Display | Fixed display step |
 | `text-h1` | 34px | 1.16 | 500 | −0.018em | **Display** | Wordmark, empty-state headline — **`(marketing)` only** |
 | `text-h2` | 24px | 1.25 | 600 | −0.014em | Sans | Page title, section, modal title, in-app empty state — **the ceiling in `(app)`** |
 | `text-h3` | 18px | 1.35 | 600 | −0.008em | Sans | Card and section title |
@@ -396,6 +397,18 @@ made literal, and it is instantly recognisable.
 | `text-body` | 14px | 1.55 | 400 | 0 | Sans | Default |
 | `text-small` | 13px | 1.45 | 400 | 0.002em | Sans | Table cells, help text |
 | `text-micro` | 11px | 1.3 | 500 | 0.06em | Sans, uppercase | Column headers, form labels, **KPI labels**, metadata |
+
+**`text-hero` is the only fluid step, and it does not replace `text-display`.**
+§2 opens the landing page to "display type at 3.5rem+", which a fixed step cannot express:
+56px is too large beside a 360px viewport and too small across 1920px. So the hero tracks
+the viewport between 2.5rem — two words per line at 360px, measured — and 5rem, the
+ceiling that allowance implies.
+
+Everything else stays fixed on purpose. A section heading sits against known spacing and
+wants a number rather than a range; a scale where every step moved would make vertical
+rhythm unpredictable at every width. One step is fluid because exactly one surface needs
+it, and `text-display` remains the 56px step for any display-face heading that is not the
+landing hero.
 
 KPI figures use Plex Mono at **`text-h3` (18px), weight 500** — one size, every
 tile, every width. This is the one place the mono appears large, and it is the
@@ -1219,6 +1232,14 @@ the full ledger.
 ledger wants width. Forms and settings constrained to **720px** regardless of viewport;
 a 1600px-wide form is unusable. Marketing 1200px, prose 68ch.
 
+The marketing measure has a utility: **`marketing-container`** — 1200px, centred, with
+24px gutters widening to 40px at ≥768px. It carries width, centring and horizontal
+padding only; vertical rhythm stays at the call site, because a masthead, a section and
+a footer want different amounts of it and folding one in would make the other two fight
+the utility. It exists because the landing page had written
+`mx-auto max-w-[1200px] px-6 md:px-10` by hand at seven call sites, which is seven
+chances for one of them to drift off the measure the rest of the segment shares.
+
 **Page header** Optional breadcrumb (`text-micro`, `fg-muted`), title `text-h2`,
 optional description `text-small` / `fg-secondary`, action cluster right-aligned.
 20px vertical padding, 1px `line-subtle` bottom rule. On table pages it sticks and
@@ -1459,6 +1480,37 @@ arbitrary value:
 is untethered from the scale and will not follow a change to the token. The easing tokens
 *are* in `@theme`, so `ease-standard`, `ease-out-quint` and `ease-in-out-soft` are real
 utilities and should be written as such.
+
+### The two entrance utilities
+
+One keyframe, `settled-enter` (fade and 8px rise), exposed at two durations. Which one a
+surface may use is set by §2, not by preference:
+
+| Utility | Duration | Permitted on |
+| --- | --- | --- |
+| `enter` | `--duration-slow` (380ms) | Login, empty states, error pages — the moderate tier's single fade-in |
+| `enter-expressive` | `--duration-expressive` (700ms) | **Landing page only** |
+
+They are two utilities rather than one with a modifier because the choice is a property of
+the surface. 700ms on a login card would be a screen announcing itself on every visit,
+which is exactly what §2's moderate tier forbids; 380ms on the landing hero would undercut
+the one orchestrated load that tier is built around.
+
+**Neither is permitted on an application surface.** The dashboard and the ledger get no
+entrance at all — §2 again, and the test it sets: *would this still be welcome on the four
+hundredth viewing?*
+
+Stagger a sequence with an inline `animation-delay` rather than a second utility per step:
+
+```html
+<p class="enter-expressive" style="animation-delay:200ms">
+```
+
+The reduced-motion block collapses both durations to 1ms, and `settled-enter` is declared
+with `both` fill, so an element is never left parked at zero opacity waiting for something
+to start it. That matters more than it sounds: an entrance built on a scroll observer
+leaves a page blank for anyone whose observer never fires, whereas this one has already
+finished by the time the page is interactive.
 
 ### The `settled-shimmer` keyframe
 

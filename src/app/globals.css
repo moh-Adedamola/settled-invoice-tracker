@@ -319,6 +319,20 @@
 
   /* -- type scale -------------------------------------------------------
      display uses --font-display; everything else --font-sans. */
+
+  /* Fluid, and the ONLY step that is. 2.5rem holds two words per line at
+     360px; 5rem is the ceiling section 2 opens with its "3.5rem+" allowance for
+     the landing page. Between them it tracks the viewport, because a hero is
+     the one place where a fixed size is either too small on a laptop or too
+     wide on a phone. Landing hero only - see docs/design-system.md section 5. */
+  --text-hero: clamp(2.5rem, 7.2vw, 5rem);
+  --text-hero--line-height: 1.02;
+  --text-hero--letter-spacing: -0.025em;
+  --text-hero--font-weight: 400;
+
+  /* The FIXED 56px display step. Not superseded by --text-hero: a section
+     heading that has to sit at a known size against known spacing wants a
+     number, not a range. */
   --text-display: 3.5rem;
   --text-display--line-height: 1.04;
   --text-display--letter-spacing: -0.022em;
@@ -531,10 +545,16 @@
 }
 
 /* --------------------------------------------------------------------------
-   Entrance animation — the single fade-and-rise permitted on moderate-ambition
-   surfaces (login, empty states, error pages) per docs/design-system.md §2.
-   NOT for application surfaces: the dashboard and ledger get no entrance.
-   The reduced-motion block below collapses this to 1ms.
+   Entrance animation — one keyframe, exposed at two durations by the `enter`
+   and `enter-expressive` utilities below.
+
+   Which one a surface may use is set by docs/design-system.md §2, not by
+   preference: `enter` (380ms) is the single fade-and-rise permitted on
+   moderate-ambition surfaces (login, empty states, error pages), and
+   `enter-expressive` (700ms) is the landing page's alone.
+
+   NEITHER is for application surfaces: the dashboard and ledger get no
+   entrance. The reduced-motion block below collapses both to 1ms.
    -------------------------------------------------------------------------- */
 
 @keyframes settled-enter {
@@ -560,6 +580,21 @@
 
 @utility enter {
   animation: settled-enter var(--duration-slow) var(--ease-out-quint) both;
+}
+
+/* The same keyframe at --duration-expressive (700ms), which section 9 reserves
+   for the landing page.
+
+   Two utilities rather than one with a modifier, because the choice is not a
+   preference: 380ms is what a login card or an error page gets, and 700ms on
+   one of those would be a surface announcing itself on every visit. Which
+   duration is permitted is a property of the surface, so it is named.
+
+   Pair with an inline animation-delay to stagger a sequence. The reduced-motion
+   block below collapses both to 1ms, and `both` fill means an element is never
+   left parked at zero opacity waiting for something to start it. */
+@utility enter-expressive {
+  animation: settled-enter var(--duration-expressive) var(--ease-out-quint) both;
 }
 
 /* --------------------------------------------------------------------------
@@ -596,6 +631,26 @@
 
   &[data-visible='true'] {
     opacity: 1;
+  }
+}
+
+/* The marketing measure, per section 8: 1200px, centred, with the segment's
+   gutters.
+
+   Width, centring and horizontal padding only - vertical rhythm stays at the
+   call site, because a masthead, a section and a footer want different amounts
+   of it and folding one of them in would make the other two fight the utility.
+
+   It exists because seven call sites had written `mx-auto max-w-[1200px] px-6
+   md:px-10` by hand, which is seven chances for one of them to drift off the
+   measure the rest of the segment shares. */
+@utility marketing-container {
+  margin-inline: auto;
+  max-width: 1200px;
+  padding-inline: 1.5rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 2.5rem;
   }
 }
 
