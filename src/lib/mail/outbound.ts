@@ -143,6 +143,27 @@ export type DispatchOutcome =
  * All three are currently zero in the database, which is the argument for
  * writing them down rather than relying on it: the invariant is not enforced
  * anywhere, so it is a fact about today, not a guarantee.
+ *
+ * ## UNTESTED IN THE DIRECTION THAT MATTERS
+ *
+ * Measured the day the sending crons were enabled:
+ *
+ *   clients 14 / 0 live     receipt candidates  42 unfiltered -> 0 filtered
+ *   invoices 59 / 0 live    overdue candidates   7 unfiltered -> 0 filtered
+ *   payments 54 / 0 live
+ *
+ * Every row in the database is a demo row, so both filters below have only ever
+ * been exercised in one direction. Those zeroes prove they EXCLUDE demo rows.
+ * They prove nothing about whether they correctly INCLUDE a live one: a
+ * predicate that matched nothing at all — a typo'd column, an inverted boolean,
+ * a join that drops rows — would produce exactly the same zero, and today's
+ * output would look identical.
+ *
+ * The first live invoice is the first real test of this path, in both
+ * directions at once. When it exists, run dispatch-outbound by hand and read
+ * the counts rather than assuming silence means health. A receipt that never
+ * sends is as much a bug as one that sends to the wrong person, and this file
+ * currently cannot tell you which of the two it is producing.
  */
 const RECEIPT_IS_LIVE = sql`p.is_demo = false and i.is_demo = false and c.is_demo = false`;
 const REMINDER_IS_LIVE = sql`i.is_demo = false and c.is_demo = false`;
