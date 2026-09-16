@@ -55,7 +55,7 @@ export function LoginForm() {
           required
           aria-invalid={emailError ? true : undefined}
           aria-describedby={emailError ? emailErrorId : undefined}
-          className="h-9 rounded-sm border border-line-strong bg-transparent px-2.5 text-body text-ink placeholder:text-ink-muted"
+          className="h-control rounded-sm border border-line-strong bg-transparent px-2.5 text-body text-ink placeholder:text-ink-muted"
         />
         {emailError ? (
           <p id={emailErrorId} className="text-small text-failed">
@@ -79,7 +79,7 @@ export function LoginForm() {
           required
           aria-invalid={passwordError ? true : undefined}
           aria-describedby={passwordError ? passwordErrorId : undefined}
-          className="h-9 rounded-sm border border-line-strong bg-transparent px-2.5 text-body text-ink"
+          className="h-control rounded-sm border border-line-strong bg-transparent px-2.5 text-body text-ink"
         />
         {passwordError ? (
           <p id={passwordErrorId} className="text-small text-failed">
@@ -97,7 +97,7 @@ export function LoginForm() {
         type="submit"
         disabled={pending}
         aria-busy={pending}
-        className="ring-inverse relative mt-1 inline-flex h-9 items-center justify-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-accent"
+        className="ring-inverse relative mt-1 inline-flex h-control items-center justify-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-accent"
       >
         <span className={pending ? 'invisible' : undefined}>Sign in</span>
         {pending ? (

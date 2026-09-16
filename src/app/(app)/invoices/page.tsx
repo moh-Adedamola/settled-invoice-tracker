@@ -111,7 +111,7 @@ export default async function InvoicesPage({
           readOnly ? null : (
             <Link
               href="/invoices/new"
-              className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
+              className="ring-inverse inline-flex h-control items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
             >
               New invoice
             </Link>

@@ -9,7 +9,7 @@ import { currencySymbol, formatDateFull, formatMinorDigits } from '@/lib/format'
 import { StatusBadge, invoiceStatusKey } from '@/components/ui/status-badge';
 
 const button =
-  'inline-flex h-9 items-center rounded-sm px-3.5 text-small font-medium transition-colors duration-[var(--duration-fast)] ease-standard disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex h-control items-center rounded-sm px-3.5 text-small font-medium transition-colors duration-[var(--duration-fast)] ease-standard disabled:cursor-not-allowed disabled:opacity-50';
 const ghost = `${button} border border-line-strong text-ink hover:bg-row-hover`;
 const primary = `${button} bg-accent text-accent-fg ring-inverse hover:bg-accent-hover`;
 
@@ -73,63 +73,166 @@ export function MatchPanel({
     );
   }
 
+  /*
+    Split by whether the invoice can actually take the money.
+
+    Measured at 390x844: twenty candidates, each 113px, zero gap between them —
+    2470px, 293% of a viewport, and **fifteen of the twenty read "Already
+    settled in full"**. The reader scrolled nearly three screens of invoices
+    that cannot help to find the few that can.
+
+    A settled invoice is a legitimate target: a duplicate transfer has to go
+    somewhere, which is why `getMatchCandidates` returns them and why
+    ConfirmMatch spells out the overpayment. But it is the rare case, and the
+    list was ordering the rare case in among the ordinary one. Same-client
+    sorts first in the SQL and it sorts settled invoices first too, so the
+    strongest ranking signal was burying the answer.
+
+    So: invoices with something outstanding are the list. Settled ones go behind
+    a disclosure that says what matching one of them would mean. Nothing is
+    removed — the ranking inside each group is the query's, untouched.
+  */
+  const open = candidates.filter((c) => c.outstandingMinor > 0n);
+  const settled = candidates.filter((c) => c.outstandingMinor === 0n);
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-group">
       <p className="text-small text-ink-secondary">
         Invoices in {currency} this payment could settle — the client already on
         the payment first, then by how close the balance is to{' '}
         {money(amountMinor, currency)}.
       </p>
 
-      <ul className="overflow-hidden rounded-md border border-line bg-surface">
-        {candidates.map((candidate) => {
-          const badge = invoiceStatusKey(candidate.status);
-          const exact = candidate.amountGapMinor === 0n;
-          return (
-            <li key={candidate.id} className="border-t border-line-subtle first:border-t-0">
-              <button
-                type="button"
-                onClick={() => setChosen(candidate)}
-                className="flex w-full flex-col gap-1.5 px-4 py-3 text-left transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                  <span className="money text-small text-ink">{candidate.number}</span>
-                  <div className="flex items-center gap-2">
-                    {exact ? (
-                      <span className="rounded-xs border border-l-[3px] border-paid-line border-l-paid bg-paid-bg px-1.5 py-0.5 text-micro font-medium uppercase text-paid">
-                        Settles exactly
-                      </span>
-                    ) : null}
-                    <StatusBadge status={badge.key} label={badge.label} />
-                  </div>
-                </div>
-
-                <p className="text-small text-ink-secondary">
-                  {candidate.clientName}
-                  {candidate.sameClient ? (
-                    <span className="text-ink-muted"> · already on this payment</span>
-                  ) : null}
-                </p>
-
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <span className="text-micro text-ink-muted">
-                    {candidate.issuedAt ? <>Issued {formatDateFull(candidate.issuedAt)}</> : 'Not issued'}
-                    {candidate.dueAt ? <> · due {formatDateFull(candidate.dueAt)}</> : null}
-                  </span>
-                  <span className="text-small text-ink">
-                    {candidate.outstandingMinor > 0n ? (
-                      <>{money(candidate.outstandingMinor, candidate.currency)} outstanding</>
-                    ) : (
-                      <span className="text-refunded">Already settled in full</span>
-                    )}
-                  </span>
-                </div>
-              </button>
+      {open.length > 0 ? (
+        <ul className="flex flex-col gap-within">
+          {open.map((candidate) => (
+            <li key={candidate.id}>
+              <CandidateRow candidate={candidate} onChoose={() => setChosen(candidate)} />
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+      ) : (
+        <p className="rounded-sm border border-line bg-surface-raised px-3 py-2.5 text-small text-ink-secondary">
+          Every invoice in {currency} for this client is already settled in full.
+          Matching one below would record an overpayment.
+        </p>
+      )}
+
+      {settled.length > 0 ? (
+        <details className="group rounded-md border border-line bg-surface-raised">
+          <summary className="flex min-h-control cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover">
+            <span className="flex flex-col gap-0.5">
+              <span className="text-h4 text-ink">
+                <span className="money">{settled.length}</span> already settled in
+                full
+              </span>
+              {/* The closed row has to say what opening it would mean, or a
+                  reader cannot tell whether these are options or noise. */}
+              <span className="text-micro text-ink-muted">
+                Matching one records an overpayment
+              </span>
+            </span>
+            <span
+              aria-hidden="true"
+              className="shrink-0 text-ink-muted transition-transform duration-[var(--duration-fast)] ease-standard group-open:rotate-180"
+            >
+              ⌄
+            </span>
+          </summary>
+          <ul className="flex flex-col gap-within border-t border-line-subtle p-3">
+            {settled.map((candidate) => (
+              <li key={candidate.id}>
+                <CandidateRow
+                  candidate={candidate}
+                  onChoose={() => setChosen(candidate)}
+                />
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * One candidate.
+ *
+ * ## Rank is made of signals, not of position
+ *
+ * The query ranks same-client first, then amount proximity, then recency — and
+ * at 390px none of that was visible, because every row was the same 113px of
+ * 13px text. Position alone cannot carry an ordering the reader cannot see the
+ * basis for.
+ *
+ * So the two signals that decide the order are drawn: **Settles exactly** when
+ * the gap is zero, and **Same client** when the invoice belongs to whoever is
+ * already on the payment. A row carrying both is the answer, and it says why
+ * rather than relying on being first.
+ *
+ * The outstanding figure moves to `text-h4` — it is the headline of a stacked
+ * entry (§5) and the number the choice actually turns on.
+ */
+function CandidateRow({
+  candidate,
+  onChoose,
+}: {
+  candidate: MatchCandidate;
+  onChoose: () => void;
+}) {
+  const badge = invoiceStatusKey(candidate.status);
+  const exact = candidate.amountGapMinor === 0n;
+  const settled = candidate.outstandingMinor === 0n;
+
+  return (
+    <button
+      type="button"
+      onClick={onChoose}
+      className={`flex w-full flex-col gap-within rounded-sm border px-4 py-3 text-left transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover ${
+        exact
+          ? 'border-l-[3px] border-line border-l-accent bg-surface'
+          : 'border-line bg-surface'
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="money text-small text-ink">{candidate.number}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {exact ? (
+            <span className="rounded-xs border border-l-[3px] border-paid-line border-l-paid bg-paid-bg px-1.5 py-0.5 text-micro font-medium uppercase text-paid">
+              Settles exactly
+            </span>
+          ) : null}
+          <StatusBadge status={badge.key} label={badge.label} />
+        </div>
+      </div>
+
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-small text-ink-secondary">
+        {candidate.clientName}
+        {candidate.sameClient ? (
+          /* Was a muted "· already on this payment" suffix, which is the
+             strongest ranking signal in the query rendered as the quietest
+             thing on the row. */
+          <span className="rounded-xs border border-accent bg-accent-subtle px-1.5 py-0.5 text-micro font-medium uppercase text-accent">
+            Same client
+          </span>
+        ) : null}
+      </p>
+
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="text-micro text-ink-muted">
+          {candidate.issuedAt ? <>Issued {formatDateFull(candidate.issuedAt)}</> : 'Not issued'}
+          {candidate.dueAt ? <> · due {formatDateFull(candidate.dueAt)}</> : null}
+        </span>
+        {settled ? (
+          <span className="text-small text-refunded">Already settled in full</span>
+        ) : (
+          <span className="money text-h4 text-ink">
+            {money(candidate.outstandingMinor, candidate.currency)}
+            <span className="text-micro font-normal text-ink-muted"> outstanding</span>
+          </span>
+        )}
+      </div>
+    </button>
   );
 }
 
@@ -279,7 +382,7 @@ export function UnmatchControl({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="inline-flex h-9 items-center rounded-sm px-3 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink focus-visible:text-ink"
+        className="inline-flex h-control items-center rounded-sm px-3 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink focus-visible:text-ink"
       >
         Unmatch
       </button>

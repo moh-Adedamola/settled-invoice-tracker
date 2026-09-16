@@ -1,9 +1,9 @@
-import Form from 'next/form';
-import Link from 'next/link';
-
 import type { PaymentFilterOptions } from '@/lib/queries/payments';
 import { PAYMENT_PROVIDERS, PAYMENT_STATUSES } from '@/lib/queries/payments';
+import type { PaymentStatus } from '@/lib/db';
 import { STATUS, paymentStatusKey } from '@/components/ui/status-badge';
+import { FilterPanel } from '@/components/ui/filter-panel';
+import { FILTER_CHIP, CHECKBOX_MARK } from '@/components/ui/control-classes';
 
 import { PROVIDER_LABEL } from './payment-bits';
 
@@ -39,20 +39,54 @@ export function PaymentFilters({
     selected.unmatched ||
     Boolean(selected.currency || selected.from || selected.to || selected.q);
 
-  const field = 'h-9 rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
+  /*
+    What the collapsed row says. One short phrase per applied filter, in the
+    order someone would say them out loud — the query first, because that is
+    what a reader is most likely to have forgotten leaving on.
+
+    Counts rather than lists for the multi-selects: "2 statuses" fits, "Succeeded,
+    Pending" does not, and the closed row is a reminder that something is
+    filtering the list rather than a full account of what.
+  */
+  const summary = [
+    selected.q ? `"${selected.q}"` : null,
+    selected.unmatched ? 'Awaiting a match' : null,
+    selected.status.length === 1
+      ? paymentStatusKey(selected.status[0] as PaymentStatus).label
+      : selected.status.length > 1
+        ? `${selected.status.length} statuses`
+        : null,
+    selected.provider.length === 1
+      ? PROVIDER_LABEL[selected.provider[0]! as keyof typeof PROVIDER_LABEL]
+      : selected.provider.length > 1
+        ? `${selected.provider.length} providers`
+        : null,
+    selected.currency || null,
+    selected.from || selected.to
+      ? `${selected.from || '…'} to ${selected.to || '…'}`
+      : null,
+  ].filter((v): v is string => Boolean(v));
+
+  const field =
+    'h-control rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
   // No bg-transparent: a select keeps the bg-overlay ground @layer base gives
   // it, which is what the OS paints the native popup from. See §7.
-  const selectField = 'h-9 rounded-sm border border-line-strong px-2.5 text-small text-ink';
+  const selectField =
+    'h-control rounded-sm border border-line-strong px-2.5 text-small text-ink';
   const label = 'text-micro uppercase text-ink-muted';
 
   return (
-    <Form
+    <FilterPanel
       action="/payments"
-      className="flex flex-col gap-4 rounded-md border border-line bg-surface-raised p-4"
+      active={active}
+      summary={summary}
+      hidden={
+        <>
+          <input type="hidden" name="sort" value={selected.sort} />
+          <input type="hidden" name="dir" value={selected.direction} />
+        </>
+      }
     >
-      <input type="hidden" name="sort" value={selected.sort} />
-      <input type="hidden" name="dir" value={selected.direction} />
-
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex min-w-[220px] flex-1 flex-col gap-2">
           <label htmlFor="q" className={label}>
@@ -106,7 +140,7 @@ export function PaymentFilters({
           return (
             <label
               key={status}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xs border px-2 py-1 text-micro uppercase transition-colors duration-[var(--duration-fast)] ease-standard ${
+              className={`${FILTER_CHIP} ${
                 checked
                   ? `${entry.className} border-l-[3px]`
                   : 'border-line-strong text-ink-secondary hover:bg-row-hover hover:text-ink'
@@ -117,7 +151,7 @@ export function PaymentFilters({
                 name="status"
                 value={status}
                 defaultChecked={checked}
-                className="h-3 w-3 accent-[var(--accent)]"
+                className={CHECKBOX_MARK}
               />
               {/* The marker travels with the colour — §3.3. */}
               <span aria-hidden="true" className="text-[10px] leading-none">
@@ -136,7 +170,7 @@ export function PaymentFilters({
           return (
             <label
               key={provider}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xs border px-2 py-1 text-micro uppercase transition-colors duration-[var(--duration-fast)] ease-standard ${
+              className={`${FILTER_CHIP} ${
                 checked
                   ? 'border-accent bg-accent-subtle text-ink'
                   : 'border-line-strong text-ink-secondary hover:bg-row-hover hover:text-ink'
@@ -147,7 +181,7 @@ export function PaymentFilters({
                 name="provider"
                 value={provider}
                 defaultChecked={checked}
-                className="h-3 w-3 accent-[var(--accent)]"
+                className={CHECKBOX_MARK}
               />
               {PROVIDER_LABEL[provider]}
             </label>
@@ -161,34 +195,17 @@ export function PaymentFilters({
           switch rather than another checkbox in a row of them. It is also the
           only filter anyone reaches for twice a day.
         */}
-        <label className="inline-flex cursor-pointer items-center gap-2 text-small text-ink-secondary">
+        <label className="inline-flex min-h-control cursor-pointer items-center gap-2 text-small text-ink-secondary md:min-h-0">
           <input
             type="checkbox"
             name="unmatched"
             value="1"
             defaultChecked={selected.unmatched}
-            className="h-3.5 w-3.5 accent-[var(--accent)]"
+            className={CHECKBOX_MARK}
           />
           Only payments awaiting a match
         </label>
-
-        <span aria-hidden="true" className="hidden h-5 w-px bg-line-strong sm:block" />
-
-        <button
-          type="submit"
-          className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
-        >
-          Apply filters
-        </button>
-        {active ? (
-          <Link
-            href="/payments"
-            className="rounded-xs text-small text-accent underline underline-offset-2 hover:text-accent-hover"
-          >
-            Clear all
-          </Link>
-        ) : null}
       </div>
-    </Form>
+    </FilterPanel>
   );
 }

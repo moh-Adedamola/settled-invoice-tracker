@@ -52,7 +52,7 @@ export function Pagination({
     `${basePath}${patchQuery(query, { page: target === 1 ? null : String(target) }, { resetPage: false })}`;
 
   const step =
-    'inline-flex h-8 items-center rounded-sm border border-line-strong px-3 text-small transition-colors duration-[var(--duration-fast)] ease-standard';
+    'inline-flex h-control-sm items-center rounded-sm border border-line-strong px-3 text-small transition-colors duration-[var(--duration-fast)] ease-standard';
 
   // Numbered pages only while they fit on one line; past that the numbers stop
   // being a useful way to navigate and prev/next carries it.
@@ -82,7 +82,7 @@ export function Pagination({
                 <span
                   key={n}
                   aria-current="page"
-                  className="money inline-flex h-8 items-center px-2.5 text-small text-ink underline decoration-accent decoration-2 underline-offset-[6px]"
+                  className="money inline-flex h-control-sm min-w-control-sm items-center justify-center px-2.5 text-small text-ink underline decoration-accent decoration-2 underline-offset-[6px]"
                 >
                   {n}
                 </span>
@@ -90,7 +90,7 @@ export function Pagination({
                 <Link
                   key={n}
                   href={href(n)}
-                  className="money inline-flex h-8 items-center rounded-sm px-2.5 text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink"
+                  className="money inline-flex h-control-sm min-w-control-sm items-center justify-center rounded-sm px-2.5 text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink"
                 >
                   {n}
                 </Link>

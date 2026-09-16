@@ -30,7 +30,7 @@ export default async function EditClientPage({
         eyebrow={
           <Link
             href={`/clients/${client.id}`}
-            className="rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
+            className="tap-target rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
           >
             ← {client.name}
           </Link>

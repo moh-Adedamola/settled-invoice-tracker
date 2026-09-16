@@ -99,48 +99,6 @@ export function Sidebar({
   const collapsed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const toggle = () => persist(!collapsed);
 
-  /**
-   * Keep the keyboard-focused strip item fully inside the scroller.
-   *
-   * Chrome will not scroll for an element that is only PARTIALLY out of view:
-   * focus scrolling aligns "nearest", and "nearest" is a no-op the moment any
-   * part of the box is inside the scrollport. Measured at 360/390/430/500px,
-   * that is exactly the case that keeps happening here — walking the strip with
-   * Tab and Shift+Tab always left one item clipped at an edge with focus on it,
-   * `Invoices` at −24px, `Dashboard` at −63px with 6px of itself showing. The
-   * ring was outside the scrollport and the label was unreadable.
-   *
-   * `scroll-padding-left` does not reach it. The padding is honoured when Chrome
-   * does decide to scroll — with it, an item fully off the left edge lands at
-   * 38px instead of −137px — but it cannot make Chrome scroll in the first
-   * place, and the partially-clipped case is the one that matters.
-   *
-   * This predates the home mark: the strip has always overflowed (509px of items
-   * in a 360px bar) and has always been able to park focus on a clipped item.
-   * The mark narrows the scrollport by 36px, which makes it worse, so it is
-   * fixed here rather than left.
-   *
-   * React's `onFocus` is `focusin`, so it bubbles and one listener covers every
-   * item. Setting `scrollLeft` directly is deliberate: this is a correction to a
-   * jump the browser already made, not a movement of its own, and animating it
-   * would be motion the reader did not ask for. `--duration-*` collapses under
-   * reduced motion anyway; there is nothing here to collapse.
-   */
-  const keepFocusedItemInView = (event: React.FocusEvent<HTMLDivElement>) => {
-    const scroller = event.currentTarget;
-    const item = (event.target as HTMLElement).closest<HTMLElement>('[data-nav-item]');
-    if (!item) return;
-
-    const port = scroller.getBoundingClientRect();
-    const box = item.getBoundingClientRect();
-    // 8px so the item clears the edge rather than sitting flush against it —
-    // a focus ring drawn at the boundary is still half a ring.
-    const gutter = 8;
-
-    if (box.left < port.left) scroller.scrollLeft -= port.left - box.left + gutter;
-    else if (box.right > port.right) scroller.scrollLeft += box.right - port.right + gutter;
-  };
-
   const items = NAV.map((item) => {
     const href = item.href === '/dashboard' ? dashboardHref : item.href;
     const locked = anonymous && item.privileged === true;
@@ -216,7 +174,7 @@ export function Sidebar({
           <Link
             href={homeHref}
             aria-label="Settled — home"
-            className="flex h-9 items-center rounded-sm px-2 transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
+            className="flex h-control items-center rounded-sm px-2 transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
           >
             <span aria-hidden="true" className="text-h3 text-ink">
               S
@@ -242,7 +200,7 @@ export function Sidebar({
           {items.map(({ href, label, Icon, enabled, reason }) => {
             const active = pathname === href;
             const shared =
-              'flex h-9 items-center gap-3 rounded-sm px-2.5 text-small transition-colors duration-[var(--duration-fast)] ease-standard';
+              'flex h-control items-center gap-3 rounded-sm px-2.5 text-small transition-colors duration-[var(--duration-fast)] ease-standard';
             const labelClass = collapsed ? 'hidden' : 'hidden xl:inline';
 
             if (!enabled) {
@@ -285,7 +243,7 @@ export function Sidebar({
             type="button"
             onClick={toggle}
             aria-expanded={!collapsed}
-            className="flex h-9 w-full items-center gap-3 rounded-sm px-2.5 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink"
+            className="flex h-control w-full items-center gap-3 rounded-sm px-2.5 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink"
           >
             {collapsed ? (
               <ChevronsRight aria-hidden="true" size={16} className="shrink-0" />
@@ -298,141 +256,106 @@ export function Sidebar({
       </nav>
 
       {/*
-        <900px: §8 specifies an overlay drawer. Not built — this is a horizontal
-        strip instead, which keeps every destination reachable without a
-        half-finished drawer. Flagged in the handover.
+        <900px: a BOTTOM TAB BAR. See design-system.md section 8 — this replaces
+        both the horizontal top strip that shipped here and the overlay drawer
+        the section used to specify but never built.
 
-        ## Pinned to the top
+        ## What the strip actually measured
 
-        "Keeps every destination reachable" was only true above the fold. The
-        strip is the ONLY navigation a phone gets — there is no rail and no
-        drawer — so scrolling a ledger left a visitor with no way to anywhere
-        except the browser's back button.
+        509px of items in a 360px bar, and 501px in a 354px scrollport at 390px:
+        29% of the primary navigation was off-screen at rest, on every
+        authenticated page, behind a scroller with no affordance announcing it.
+        Clients and Settings were permanently past the fold. The keyboard
+        correction directly above this comment exists because of that overflow —
+        it is a workaround for a bar that never fit.
 
-        `bg-surface-raised` is the ground, and it has to be a real one:
-        `--bg-raised` is the token §6 names for "cards, sidebar, sticky
-        headers", it is opaque in both themes (#fdfdfb / #161c24), and it is one
-        step off `--bg-base` so the strip reads as sitting above the page rather
-        than being a hole in it. A translucent fill here would show ledger rows
-        travelling through the words, which is the thing this bar exists to stay
-        legible against. The landing masthead takes the opposite treatment for
-        the opposite reason — see `masthead-plate` in globals.css.
+        Five destinations fit a tab bar exactly. 390 / 5 = 78px per cell against
+        a 44px minimum, so nothing scrolls, nothing is discovered, and the
+        reader sees every destination at rest.
 
-        z-30 clears the tables. Their pinned cells run to z-20 (the corner cell,
-        which is sticky on both axes), so 30 is the first step above the ledger
-        rather than an arbitrary large number.
+        ## Why the bottom, and what it buys
 
-        Height is pinned to --app-nav-h so it cannot drift from the offset the
-        ledger headers and the focus clearance are computing against.
+        A phone is held at the bottom. More usefully: a bar pinned to the BOTTOM
+        covers the end of the scrollport rather than the start, so --sticky-top
+        drops to 0 below 900px and every ledger table header that used to sit
+        49px down comes back to y=0. The 49px of top strip is recovered twice.
 
-        ## Two boxes, and that is the whole trick
+        `fixed`, not `sticky`: the bar is chrome over the viewport, not a
+        participant in the document's flow. The shell pays for it with
+        scroll-padding on the content — see (app)/layout.tsx.
 
-        The mark is a SIBLING of the scroller, not a child of it. The bar is a
-        flex row: an unscrolling mark, then a scrollport holding the items.
+        z-30 matches the old strip and clears the tables, whose pinned cells run
+        to z-20.
 
-        The obvious build is one scroller with the mark `sticky left-0` inside
-        it, and it was built that way first. It fails on the keyboard. Measured
-        at 360/390/430/500px, shift-tabbing back along the strip always left
-        exactly one item sitting partly under the mark — Invoices at −27px at
-        360, Dashboard at −67px at 430 — and no amount of `scroll-padding-left`
-        moved it. The padding IS honoured (with it, an item fully off the left
-        edge lands at 38px instead of −137px), but Chrome will not scroll for an
-        element that is only PARTIALLY out of view: focus scrolling aligns
-        "nearest", and "nearest" is a no-op when any part of the box is already
-        inside the scrollport. So the one case that matters is the one case the
-        CSS cannot reach.
+        `bg-surface-raised` is the ground and has to be a real one: the token
+        section 6 names for "cards, sidebar, sticky headers", opaque in both
+        themes (#fdfdfb / #161c24) and one step off --bg-base, so the bar reads
+        as sitting above the page rather than as a hole in it. Translucent here
+        would show ledger rows travelling through the labels, which is the one
+        thing this bar has to stay legible against.
 
-        Taking the mark out of the scrollport removes the failure instead of
-        papering over it. Nothing can slide under a box that is not in the
-        scrolling area, there is no overlap to correct, and the mark needs no
-        z-index, no opaque ground of its own and no scroll padding. Items now
-        clip at the divider rather than travelling beneath it, which is also the
-        more honest edge — the rule is where the scrolling region starts.
+        The home mark is NOT here. Five tabs is what fits; a sixth cell for a
+        wordmark would cost every tab 13px and buy a destination the Dashboard
+        tab already reaches. It moved to the shell header — see
+        (app)/layout.tsx.
       */}
       <nav
         aria-label="Main"
-        className="sticky top-0 z-30 flex h-[var(--app-nav-h)] shrink-0 items-center border-b border-line bg-surface-raised min-[900px]:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] min-[900px]:hidden"
       >
         {/*
-          The way out, and below 900px it did not exist.
-
-          The rail got a home link last round, but the rail is not what a phone
-          renders — this strip is, and it carried no mark. The only other route
-          out was the demo banner's "What Settled does", which renders for
-          anonymous visitors ONLY, so a signed-in admin on a phone had no way
-          back to anything except the browser's back button.
-
-          Same `homeHref` the rail uses, from the same prop, decided by the same
-          rule in the layout: '/' signed out (the landing page is their home and
-          the only way out of the demo), '/dashboard' signed in (mid-session,
-          "home" is not a sales page).
-
-          ## One letter below 640px, the wordmark above it
-
-          The rail already collapses to "S" between 900 and 1280 — this is that
-          treatment, at the width where it earns more. The strip overflows by
-          175px at 360px before the mark is added at all: five items need 509px
-          of a 360px bar. Every pixel the mark takes is a pixel of nav that has
-          to be scrolled to, so while the items overflow, "S" (34px) over
-          "Settled" (80px) is 46px of real estate that buys nothing.
-
-          640px is where it stops being a trade: items (509) + gutters + the
-          full wordmark still fit, and measured at `sm` the strip's overflow is
-          0. So the mark can be spelled out exactly when spelling it out is free.
-
-          The border-r is what stops a bare "S" reading as a nav item that lost
-          its label — the same separation the rail draws under its own mark,
-          turned ninety degrees. It doubles as the edge of the scrolling region.
-
-          `aria-label` spells the name because the visible text is split across
-          two spans so the collapsed state can show just the S, and a screen
-          reader would otherwise announce it as two fragments. The label does
-          not change with the width, so neither does what is announced.
+          `grid-cols-5` rather than flex: every destination gets an identical
+          cell whatever its label length, so the hit areas are predictable and
+          "Settings" does not end up a wider target than "Clients". It is also
+          what guarantees the 44px minimum arithmetically rather than by
+          measurement — at the 320px floor a cell is still 64px wide.
         */}
-        <Link
-          href={homeHref}
-          aria-label="Settled — home"
-          className="flex h-full shrink-0 items-center border-r border-line-subtle px-3 text-h3 text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
-        >
-          <span aria-hidden="true">S</span>
-          <span aria-hidden="true" className="hidden sm:inline">
-            ettled
-          </span>
-        </Link>
+        <ul className="grid h-[var(--app-tabbar-h)] grid-cols-5">
+          {items.map(({ href, label, Icon, enabled, reason }) => {
+            const active = pathname === href;
 
-        <div
-          onFocus={keepFocusedItemInView}
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 py-2"
-        >
-          {items.map(({ href, label, Icon, enabled }) =>
-            enabled ? (
-              <Link
-                key={href}
-                href={href}
-                data-nav-item=""
-                aria-current={pathname === href ? 'page' : undefined}
-                className={`flex h-8 shrink-0 items-center gap-2 rounded-sm px-2.5 text-small ${
-                  pathname === href
-                    ? 'bg-accent-subtle text-ink'
-                    : 'text-ink-secondary'
-                }`}
-              >
-                <Icon aria-hidden="true" size={14} />
-                {label}
-              </Link>
-            ) : (
-              <span
-                key={href}
-                data-nav-item=""
-                aria-disabled="true"
-                className="flex h-8 shrink-0 items-center gap-2 rounded-sm px-2.5 text-small text-ink-muted opacity-60"
-              >
-                <Icon aria-hidden="true" size={14} />
-                {label}
-              </span>
-            ),
-          )}
-        </div>
+            /*
+              The active rule is the rail's 2px accent left-edge turned ninety
+              degrees onto the top of the cell — the same signal in the same
+              colour, oriented to the bar it sits in. Inset shadow rather than a
+              border so the cell does not change height when it activates.
+            */
+            const shared =
+              'flex h-full flex-col items-center justify-center gap-0.5 text-micro transition-colors duration-[var(--duration-fast)] ease-standard';
+
+            if (!enabled) {
+              return (
+                <li key={href}>
+                  <span
+                    aria-disabled="true"
+                    title={`${label} — ${reason}`}
+                    className={`${shared} cursor-not-allowed text-ink-muted opacity-60`}
+                  >
+                    <Icon aria-hidden="true" size={20} className="shrink-0" />
+                    {label}
+                  </span>
+                </li>
+              );
+            }
+
+            return (
+              <li key={href}>
+                <Link
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`${shared} ${
+                    active
+                      ? 'bg-accent-subtle text-accent shadow-[inset_0_2px_0_var(--accent)]'
+                      : 'text-ink-secondary hover:bg-row-hover hover:text-ink'
+                  }`}
+                >
+                  <Icon aria-hidden="true" size={20} className="shrink-0" />
+                  {label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
     </>
   );

@@ -144,7 +144,7 @@ export function InvoiceForm({
   const incomplete = totals.some((t) => t === null);
 
   const field =
-    'h-9 w-full rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
+    'h-control w-full rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
   /*
    * A select keeps the `bg-overlay` ground that @layer base gives it, so no
    * `bg-transparent` here. The ground is not decoration: the OS draws the
@@ -152,7 +152,7 @@ export function InvoiceForm({
    * the popup on the OS's own light ground with near-white text on it.
    */
   const selectField =
-    'h-9 w-full rounded-sm border border-line-strong px-2.5 text-small text-ink';
+    'h-control w-full rounded-sm border border-line-strong px-2.5 text-small text-ink';
   const label = 'text-micro uppercase text-ink-muted';
 
   return (
@@ -340,7 +340,7 @@ export function InvoiceForm({
             type="button"
             onClick={() => setLines((c) => (c.length >= MAX_LINE_ITEMS ? c : [...c, blankLine()]))}
             disabled={lines.length >= MAX_LINE_ITEMS}
-            className="inline-flex h-8 items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-control items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             Add line
           </button>
@@ -370,13 +370,13 @@ export function InvoiceForm({
         <button
           type="submit"
           disabled={pending}
-          className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-60"
+          className="ring-inverse inline-flex h-control items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? 'Saving…' : submitLabel}
         </button>
         <Link
           href={cancelHref}
-          className="rounded-xs text-small text-ink-secondary underline underline-offset-2 hover:text-ink"
+          className="inline-flex h-control items-center rounded-xs px-1 text-small text-ink-secondary underline underline-offset-2 hover:text-ink"
         >
           Cancel
         </Link>
@@ -470,7 +470,7 @@ function LineField({
         autoComplete="off"
         aria-label={label}
         onChange={handleChange}
-        className={`money h-9 w-full rounded-sm border px-2.5 text-right text-small text-ink ${
+        className={`money h-control w-full rounded-sm border px-2.5 text-right text-small text-ink ${
           errors ? 'border-failed' : 'border-line-strong'
         } bg-transparent`}
       />
@@ -514,8 +514,14 @@ function RowControls({
   onMove: (index: number, delta: number) => void;
   onRemove: () => void;
 }) {
+  /*
+     `size-control-sm` — a real 44x44 box below md, not a `tap-target` overlay.
+     Up, down and remove sit within 44px of one another, and §7 is explicit that
+     overlapping hit areas go to whichever paints later rather than to whichever
+     the reader aimed at. Reorder-up and delete-line are not controls to confuse.
+  */
   const arrow =
-    'inline-flex h-8 w-8 shrink-0 items-center justify-center text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-30';
+    'inline-flex size-control-sm shrink-0 items-center justify-center text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-30';
 
   return (
     <div className="flex shrink-0 items-center gap-3">
@@ -547,7 +553,7 @@ function RowControls({
         disabled={count === 1}
         aria-label={`Remove line ${index + 1}`}
         title={count === 1 ? 'An invoice needs at least one line' : undefined}
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-failed-bg hover:text-failed focus-visible:text-failed disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+        className="inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-failed-bg hover:text-failed focus-visible:text-failed disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
       >
         ✕
       </button>

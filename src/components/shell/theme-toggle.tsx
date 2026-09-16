@@ -104,7 +104,14 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
             aria-label={label}
             title={label}
             onClick={() => persist(value)}
-            className={`flex h-7 w-7 items-center justify-center rounded-xs transition-colors duration-[var(--duration-fast)] ease-standard ${
+            /*
+              A real 44x44 box below md, not a `tap-target` overlay. Three of
+              these sit 2px apart, and three 44px overlays over three 28px
+              boxes would overlap by 16px each — the reader aims at "system"
+              and gets "dark", which is worse than the small target was.
+              Section 7: grow the box in a group, overlay only in isolation.
+            */
+            className={`flex size-control-sm items-center justify-center rounded-xs transition-colors duration-[var(--duration-fast)] ease-standard ${
               active
                 ? 'bg-accent-subtle text-accent'
                 : 'text-ink-muted hover:bg-row-hover hover:text-ink'

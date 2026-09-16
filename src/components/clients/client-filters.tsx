@@ -1,5 +1,4 @@
-import Form from 'next/form';
-import Link from 'next/link';
+import { FilterPanel } from '@/components/ui/filter-panel';
 
 /**
  * Filters as a GET form, the same arrangement the ledger uses: every filter
@@ -18,18 +17,35 @@ export function ClientFilters({
 }) {
   const active = selected.q !== '' || selected.archived !== '';
 
+  const ARCHIVED_LABEL: Record<string, string> = {
+    include: 'Archived shown',
+    only: 'Only archived',
+  };
+
+  const summary = [
+    selected.q ? `"${selected.q}"` : null,
+    ARCHIVED_LABEL[selected.archived] ?? null,
+  ].filter((v): v is string => Boolean(v));
+
   const field =
-    'h-9 rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
-  const selectField = 'h-9 rounded-sm border border-line-strong px-2.5 text-small text-ink';
+    'h-control rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
+  const selectField =
+    'h-control rounded-sm border border-line-strong px-2.5 text-small text-ink';
   const label = 'text-micro uppercase text-ink-muted';
 
   return (
-    <Form
+    <FilterPanel
       action="/clients"
-      className="flex flex-wrap items-end gap-3 rounded-md border border-line bg-surface-raised p-4"
+      active={active}
+      summary={summary}
+      hidden={
+        <>
+          <input type="hidden" name="sort" value={selected.sort} />
+          <input type="hidden" name="dir" value={selected.direction} />
+        </>
+      }
     >
-      <input type="hidden" name="sort" value={selected.sort} />
-      <input type="hidden" name="dir" value={selected.direction} />
+      <div className="flex flex-wrap items-end gap-3">
 
       <div className="flex min-w-[220px] flex-1 flex-col gap-2">
         <label htmlFor="client-q" className={label}>
@@ -67,21 +83,7 @@ export function ClientFilters({
         </select>
       </div>
 
-      <button
-        type="submit"
-        className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
-      >
-        Apply filters
-      </button>
-
-      {active ? (
-        <Link
-          href="/clients"
-          className="inline-flex h-9 items-center rounded-xs text-small text-accent underline underline-offset-2 hover:text-accent-hover"
-        >
-          Clear all
-        </Link>
-      ) : null}
-    </Form>
+      </div>
+    </FilterPanel>
   );
 }

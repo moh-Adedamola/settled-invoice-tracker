@@ -380,18 +380,38 @@
   --text-h1--letter-spacing: -0.018em;
   --text-h1--font-weight: 500;
 
-  --text-h2: 1.5rem;
+  /* h2 and h3 are FLUID, on the --text-hero pattern and for the same reason:
+     a heading that is right at 1440px is not right at 390px. Measured at
+     390x844, the app's rendered scale was 24 / 13 / 11 / 10 - the page title,
+     then a 1.85x cliff to body with nothing in between, because the two rungs
+     that should bridge it were never adopted. Making them fluid is half the
+     fix; section 5 of the design system carries the adoption rule that is the
+     other half.
+
+     24.04px at 390 -> 28px at 1440. The low end is deliberately today's fixed
+     value: 24px measured correctly as a page title on a phone, and there was
+     no reason to move what was already right. */
+  --text-h2: clamp(1.5rem, 1.393rem + 0.45vw, 1.75rem);
   --text-h2--line-height: 1.25;
   --text-h2--letter-spacing: -0.014em;
   --text-h2--font-weight: 600;
 
-  --text-h3: 1.125rem;
+  /* 19.01px at 390 -> 20px at 1440. Raised off 18px at the low end so it
+     clears --text-h4 by 1.19x: at 18/16 the pair was 1.125x apart and a card
+     title did not separate from the row headlines inside it. */
+  --text-h3: clamp(1.1875rem, 1.147rem + 0.17vw, 1.25rem);
   --text-h3--line-height: 1.35;
   --text-h3--letter-spacing: -0.008em;
   --text-h3--font-weight: 600;
 
-  --text-h4: 0.9375rem;
-  --text-h4--line-height: 1.4;
+  /* 15px -> 16px, and it acquires a job it did not have: the headline of a
+     stacked list entry - the client name on a payment card, the invoice
+     number on a match candidate. At 15px it sat 1.07x above body, which is
+     the same non-step that 13-against-14 was, and it is why every list card
+     measured as a flat run of 13px text. 16 against 14 is 1.14x, carried the
+     rest of the way by weight 600 against 400. */
+  --text-h4: 1rem;
+  --text-h4--line-height: 1.35;
   --text-h4--letter-spacing: -0.003em;
   --text-h4--font-weight: 600;
 
@@ -399,9 +419,8 @@
   --text-body--line-height: 1.55;
   --text-body--letter-spacing: 0em;
 
-  --text-small: 0.8125rem;
-  --text-small--line-height: 1.45;
-  --text-small--letter-spacing: 0.002em;
+  /* --text-small lives in the NON-inline @theme block below, because it is the
+     one type step that changes at a breakpoint rather than fluidly. */
 
   --text-micro: 0.6875rem;
   --text-micro--line-height: 1.3;
@@ -425,6 +444,83 @@
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* ==========================================================================
+   Touch scale — a SECOND @theme block, deliberately NOT `inline`
+   ==========================================================================
+
+   `@theme inline` substitutes a token's value straight into the utility:
+   `text-h2` compiles to `font-size: 1.5rem`, and the variable is never
+   emitted to :root at all. That is exactly right for the colour tokens above,
+   which point at per-theme variables that do the swapping themselves.
+
+   It is exactly wrong for a token that has to change at a breakpoint. An
+   inlined value cannot be overridden, because nothing references it — the
+   media query would move a variable no rule reads. Verified before this block
+   existed: `getComputedStyle(root).getPropertyValue('--text-h2')` returned the
+   empty string while `text-h2` was visibly working.
+
+   A plain `@theme` emits `:root { --spacing-control: 44px }` AND compiles
+   `h-control` to `height: var(--spacing-control)`, so the breakpoint block
+   further down moves every call site at once. Fluid steps (the h2/h3 clamps)
+   stay inline, because a clamp does its own scaling and needs no override.
+   ========================================================================== */
+@theme {
+  /* -- control heights --------------------------------------------------
+     Three tokens, and below `md` only two distinct values, because the
+     difference between 32px and 36px is one a pointer can use and a finger
+     cannot. Measured at 390x844: 21 of 21 controls on /invoices/new, 24 of 25
+     on /settings and 15 of 16 on /dashboard rendered under 44x44. Every one
+     of them was h-8 or h-9.
+
+     Tokens rather than `h-11 md:h-9` at the call site, because there are
+     dozens of call sites and the failure mode of the pair form is that one
+     gets written without its mobile half and nothing catches it. A component
+     asks for `h-control`; the breakpoint block decides what that means.
+
+     `--spacing-*` is the namespace Tailwind resolves for h-*, min-h-*, w-*,
+     min-w-*, p-* and gap-*, so one definition serves height and hit width. */
+  --spacing-control-sm: 44px;
+  --spacing-control: 44px;
+  --spacing-control-lg: 48px;
+
+  /* The visual mark of a checkbox or radio, which is NOT its hit area. 16px
+     is the conventional mark and the smallest that reads as a box rather than
+     a speck; it measured 12px in the filter panels and 14px in settings. The
+     44px hit area comes from the label wrapping it — see `tap-target`. */
+  --spacing-mark: 16px;
+
+  /* -- spacing: four steps that mean four things ------------------------
+     The measured failure was not that the app used too little space. It was
+     that 24px was the LARGEST gap in the product, so it had to mean both "a
+     new section begins" and "the next row of this form", and neither reading
+     survived. 31 of 63 gaps on the dashboard were literally zero; the whole
+     vocabulary was five values topping out at 24. The marketing page, same
+     tokens file, reaches 56px and spends 40-56 exclusively on section breaks.
+
+     Named for the relationship they express rather than for a number, so a
+     call site picks a meaning and the system picks the pixels.
+
+     The two large steps get BIGGER below `md`, which is the counterintuitive
+     half. At 1440px a card's edges, the column gutter and the whitespace
+     either side of the measure are all separating things. At 390px none of
+     those exist — the column is the full width and every block is the same
+     width as every other — so vertical distance is the only grouping signal
+     left and it has to carry more, not less. */
+  --spacing-within: 8px;    /* label to control, chip to chip, icon to text */
+  --spacing-group: 16px;    /* field to field, entry to entry in a list     */
+  --spacing-section: 28px;  /* card to card, section to section             */
+  --spacing-region: 48px;   /* filter panel to results, header to body      */
+
+  /* 13px at md and up, 14px below it. Two body sizes 1.077x apart are one
+     body size and a rendering bug: measured on /dashboard, text-body and
+     text-small both appeared and were indistinguishable at arm's length. The
+     density 13px buys is real in a table, and section 8 renders no table
+     below md, so the step can simply go away where it stops paying. */
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.45;
+  --text-small--letter-spacing: 0.002em;
 }
 
 /* Light lifts with a real shadow (the base, above); dark drops to a near-black
@@ -467,35 +563,101 @@
   /* ------------------------------------------------------------------------
      Sticky chrome: one number, shared by everything that has to sit under it.
 
-     `--app-nav-h` is the measured height of the horizontal nav strip the shell
-     renders below 900px — h-8 controls (32px) + py-2 (16px) + the 1px bottom
-     rule. It is written here rather than at the call site because three other
-     things need it: the strip's own `top`, the ledger tables' column-header
-     `top`, and the scroll-margin every focusable gets so it is not parked
-     underneath the bar.
+     `--app-tabbar-h` is the height of the bottom tab bar the shell renders
+     below 900px — a 20px icon, a 2px gap and an 11px label inside 56px, which
+     clears the 44px touch minimum with room for the label to sit under the
+     glyph rather than beside it.
 
-     `--sticky-top` is "how much chrome is pinned above me right now", and it
-     is the value everything else reads. It is NOT the same number as
-     --app-nav-h at every width:
+     It does NOT feed --sticky-top. A bar pinned to the BOTTOM covers the end of
+     the scrollport, not the start, so nothing needs to clear it from above;
+     what it needs is bottom padding on the content, which the shell applies.
+     That is the whole reason moving navigation down recovers vertical space
+     twice over: the 49px of top strip goes away, AND every sticky table header
+     that was offset beneath it comes back to y=0.
 
-       < 900px   the strip is pinned across the top   ->  --app-nav-h
-       >= 900px  navigation is the vertical rail, and
-                 nothing is pinned above the content  ->  0
+     `--sticky-top` is "how much chrome is pinned above me right now", and it is
+     the value everything else reads. In the app shell it is now zero at every
+     width — the rail pins nothing above content at >=900px, and the tab bar
+     pins nothing above content below it.
 
-     It inherits, so a segment with different chrome overrides it on its own
-     wrapper and every descendant follows — see the marketing layout, whose
-     masthead is pinned at every width and is taller than the strip.
+     It stays a variable rather than becoming a constant because it inherits: a
+     segment with different chrome overrides it on its own wrapper and every
+     descendant follows. The marketing layout does exactly that, and its
+     masthead IS pinned at the top, so the token still earns its keep.
      ------------------------------------------------------------------------ */
-  --app-nav-h: 49px;
-  --sticky-top: var(--app-nav-h);
+  --app-tabbar-h: 56px;
+  --sticky-top: 0px;
+
+  /* The safe area under the tab bar. iOS reports the home-indicator inset here
+     only when the viewport is declared `viewport-fit=cover` (see the `viewport`
+     export in app/layout.tsx); everywhere else it resolves to 0px and the
+     calc collapses to the bar's own height. */
+  --app-tabbar-total: calc(var(--app-tabbar-h) + env(safe-area-inset-bottom, 0px));
 }
 
-/* The rail replaces the strip at 900px, and a vertical rail pins nothing above
-   the content. Anything reading --sticky-top for clearance needs zero here, or
-   every ledger header and every focus scroll would carry 49px of dead space. */
-@media (width >= 900px) {
+/* ==========================================================================
+   The touch step-down — the one breakpoint that separates finger from pointer
+   ==========================================================================
+
+   Below `md` these tokens hold their touch values, declared in @theme above.
+   At `md` and up they step down to the pointer values the app shipped with.
+
+   ## Why a width query and not `pointer: coarse`
+
+   `(pointer: coarse)` is the semantically correct question and the wrong one
+   to ask. It answers for the PRIMARY pointer, so a touchscreen laptop reports
+   coarse and gets 44px controls in a 1600px ledger, while an iPad driven from
+   a Magic Keyboard reports fine and gets 32px controls under a finger. Both
+   are wrong in the direction that matters.
+
+   `md` is also already the app's own touch boundary: section 8 puts the
+   table/stacked-entry switch there, on a separate argument about column
+   comparison. Reusing it means one threshold governs both, and no page can
+   render 44px controls above a table or 36px controls above a card list.
+
+   ## Why the controls step DOWN rather than staying large
+
+   Because 44px is a touch minimum, not a universal one. WCAG 2.2 AA (2.5.8)
+   sets the universal floor at 24x24 CSS px, which 32px already clears; the
+   44x44 figure is 2.5.5 AAA and Apple's 44pt, and both are stated about
+   fingers. A ledger is read by comparison down a column, so a 1600px table of
+   44px rows shows roughly a third fewer rows than one of 32px rows and buys a
+   mouse nothing for it. Density is the product at desktop and a hazard at
+   touch, so the scale says so.
+   ========================================================================== */
+
+/* Touch default. A plain property, not a @theme token - nothing generates a
+   utility from it and `tap-target` reads it directly. Declared BEFORE the
+   breakpoint block: these have equal specificity, so a later bare :root would
+   beat the media query at every width. */
+:root {
+  --tap-min: 44px;
+}
+
+@media (width >= 768px) {
   :root {
-    --sticky-top: 0px;
+    --spacing-control-sm: 32px;
+    --spacing-control: 36px;
+    --spacing-control-lg: 40px;
+
+    /* Pointer needs no forced hit area; the box IS the target. Zero rather
+       than removing the utility, so `tap-target` is inert at desktop instead
+       of painting a stray overlay over neighbouring controls. */
+    --tap-min: 0px;
+
+    /* 13px returns where a table returns. See --text-small above. */
+    --text-small: 0.8125rem;
+
+    /* At desktop the two large steps relax: card edges and the column gutter
+       are separating things, so the gaps do not have to. */
+    --spacing-section: 24px;
+    --spacing-region: 32px;
+  }
+}
+
+@media (width < 768px) {
+  :root {
+    --text-small: 0.875rem;
   }
 }
 
@@ -561,6 +723,10 @@
     color: var(--accent-fg);
   }
 
+  /* The iOS zoom floor is NOT here — it has to beat the `text-body` utility on
+     the element, and a layered rule cannot. See the unlayered block below the
+     end of @layer base. */
+
   /* Native select popups.
 
      The popup is drawn by the OS, not by the page, and it takes its colours
@@ -622,6 +788,87 @@
    ========================================================================== */
 
 /* Column-aligned figures. Required on every money cell in a table. */
+/* ==========================================================================
+   The iOS zoom floor — deliberately UNLAYERED
+   ==========================================================================
+
+   iOS Safari zooms the viewport on focus for any field under 16px, and does
+   not zoom back out on blur. The reader taps a search box, the page scales
+   ~1.3x, and they are left too wide to read with no way back except a pinch —
+   on every form in the app, because --text-body is 14px and every input takes
+   it.
+
+   ## Why it is not in @layer base
+
+   It was, first, and it did nothing. Every input in this app carries a
+   `text-body` or `text-small` class, Tailwind puts those in the `utilities`
+   layer, and an unlayered or later-layered rule is what it takes to beat one.
+   Measured at 390px with the rule inside @layer base: inputs still computed
+   14px. Unlayered, they compute 16px. This is the same hazard the focus-ring
+   note in @layer base describes, arrived at from the other direction — there,
+   unlayered was the bug; here it is the fix, and the difference is whether the
+   call site is supposed to be able to win.
+
+   It is a FLOOR, not a size. `max()` says so, it is scoped below md, and it
+   only touches the fields that trigger the zoom. A call site that wants larger
+   input text below md cannot get it through this rule — no call site does, and
+   the alternative is a form that zooms.
+
+   Checkbox and radio are excluded: they have no text to zoom for and sizing
+   them here would fight `size-mark`. File inputs open a native picker rather
+   than a keyboard, and `select` zooms like a text field, so it is included.
+
+   Not reproducible in a desktop device emulator — Chrome at 390px shows
+   nothing wrong. Verified by computed font-size rather than by eye.
+   ========================================================================== */
+@media (width < 768px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea {
+    font-size: max(16px, var(--text-body));
+  }
+}
+
+/* Grow a control's HIT AREA to the touch minimum without growing the thing the
+   reader sees.
+
+   For the cases where the visual mark is correct at its size and only the
+   target is wrong: a 16px checkbox, a `← Invoices` back link that measured
+   71.9 x 14, an inline client-name link at 138.8 x 17. Making those boxes 44px
+   tall would put a slab of dead ground around a word, or a border the size of
+   a button around a tick.
+
+   The ::after is a child of the control's own box, so it belongs to that
+   control's hit test - it is genuinely tappable area, not a decoration that
+   looks like one.
+
+   ## It is for ISOLATED controls only
+
+   Two of these side by side will overlap, and the overlap goes to whichever
+   paints later rather than to whichever the reader aimed at. A 28px control in
+   a row of three needs 44px of real box each (3 x 44 = 132px of actual width),
+   not three 44px overlays fighting over 84px. Grow the real box in a group;
+   reach for this only where there is nothing within 44px to collide with.
+
+   `--tap-min` is 0 at md and up, which makes the rule inert rather than
+   absent: the pseudo-element still exists but matches the control's own box,
+   so nothing stray is painted over a neighbour at desktop. */
+@utility tap-target {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: 100%;
+    height: 100%;
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+  }
+}
+
 @utility tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;

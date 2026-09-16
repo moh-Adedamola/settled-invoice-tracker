@@ -54,7 +54,7 @@ export function PaymentsCards({
               key={key}
               href={`/payments${patchQuery(query, { sort: key, dir: next })}`}
               aria-current={active ? 'true' : undefined}
-              className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-xs px-1 text-small whitespace-nowrap ${
+              className={`inline-flex h-control-sm min-w-control-sm shrink-0 items-center justify-center gap-1 rounded-xs px-1 text-small whitespace-nowrap ${
                 active
                   ? 'text-ink underline decoration-accent decoration-2 underline-offset-[6px]'
                   : 'text-ink-secondary'
@@ -71,9 +71,34 @@ export function PaymentsCards({
         })}
       </div>
 
-      <ul className="overflow-hidden rounded-md border border-line bg-surface">
+      {/*
+        Flat, separated entries — `gap-within` per §6, never the 0px the
+        hairline-divided list had.
+
+        ## Day grouping was built here and measured out again
+
+        §6 asks a run longer than eight entries to carry grouping headers, and
+        this renders 25, so the first build grouped by business day. Measured at
+        390x844: **the page went from 3955px to 4914px.** The 25 payments fall
+        across ~18 distinct days — roughly one header per card — so each
+        singleton day cost a header, a `gap-region` and a `gap-group` to
+        separate one item from one item. 61px of chrome per payment to say
+        something the card already said.
+
+        That is a fact about this domain, not about this page: a business
+        issuing 54 payments over six weeks has one or two on most days, so day
+        groups are singletons by default. The rule in §6 now carries the caveat
+        this measurement produced — a header has to separate a *group*, and a
+        run of singletons is not grouped, it is just a list with labels.
+
+        What differentiates the entries instead is inside them: the amount leads
+        at `text-h4` so the first line of every card differs, an unmatched
+        payment carries a copper-blue left edge, and the height varies with the
+        method note and whether there is an invoice number.
+      */}
+      <ul className="flex flex-col gap-within">
         {result.rows.map((payment) => (
-          <li key={payment.id} className="border-t border-line-subtle first:border-t-0">
+          <li key={payment.id}>
             <Entry payment={payment} href={`/payments/${payment.id}${suffix}`} />
           </li>
         ))}
@@ -82,17 +107,34 @@ export function PaymentsCards({
   );
 }
 
+/**
+ * One payment.
+ *
+ * Leads with the amount, at `text-h4` — §5's step for the headline of a stacked
+ * entry, and the field that differs most between two adjacent rows. The date
+ * used to hold that position, in the same size and weight as everything else on
+ * the card, which is how 25 cards came to differ only in their digits.
+ *
+ * Height varies with content by construction, which is §6's third separation
+ * rule: an unmatched payment carries a mark where a matched one carries an
+ * invoice number, and a long method note wraps. `/clients` got that variation
+ * by accident of email length and was the one list that never read as a wall;
+ * here it is deliberate.
+ */
 function Entry({ payment, href }: { payment: PaymentListRow; href: string }) {
   const badge = paymentStatusKey(payment.status);
 
   return (
     <Link
       href={href}
-      className="flex flex-col gap-1.5 px-4 py-3 transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
+      className={`flex flex-col gap-within rounded-sm border bg-surface px-4 py-3 transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover ${
+        payment.unmatched ? 'border-l-[3px] border-line border-l-pending' : 'border-line'
+      }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <span className="money text-small whitespace-nowrap text-ink">
-          {formatDateTime(payment.occurredAt)}
+        <span className="money text-h4 whitespace-nowrap text-ink">
+          <span className="currency-mark">{currencySymbol(payment.currency)}</span>
+          {formatMinorDigits(payment.amountMinor, payment.currency)}
         </span>
         <StatusBadge status={badge.key} label={badge.label} />
       </div>
@@ -103,28 +145,20 @@ function Entry({ payment, href }: { payment: PaymentListRow; href: string }) {
         {payment.clientName ?? <span className="text-ink-muted">Unknown client</span>}
       </p>
 
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {payment.unmatched ? (
-          <UnmatchedMark />
-        ) : (
-          <span className="money text-micro text-ink-muted">{payment.invoiceNumber}</span>
-        )}
-      </div>
-
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="min-w-0 text-micro text-ink-muted">
+          <span className="money">{formatDateTime(payment.occurredAt)}</span>
+          {' · '}
           {PROVIDER_LABEL[payment.provider] ?? payment.provider}
           {payment.method ? ` · ${payment.method}` : ''}
         </span>
-        {/* §8: `min-w-0`, never `shrink-0` — a method note can make this line
-            long enough to run past the card's padding and be clipped silently. */}
-        <span
-          data-card-amount=""
-          className="money min-w-0 text-right text-small whitespace-nowrap text-ink"
-        >
-          <span className="currency-mark">{currencySymbol(payment.currency)}</span>
-          {formatMinorDigits(payment.amountMinor, payment.currency)}
-        </span>
+        {payment.unmatched ? (
+          <UnmatchedMark />
+        ) : (
+          <span className="money shrink-0 text-micro text-ink-muted">
+            {payment.invoiceNumber}
+          </span>
+        )}
       </div>
     </Link>
   );

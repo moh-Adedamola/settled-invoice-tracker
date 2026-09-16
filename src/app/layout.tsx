@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
@@ -37,6 +37,28 @@ const siteUrl =
   (process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : 'http://localhost:3000');
+
+/**
+ * `viewportFit: 'cover'` is what makes `env(safe-area-inset-*)` report a real
+ * number. Without it iOS letterboxes the page inside the safe area, every inset
+ * resolves to 0px, and the bottom tab bar sits above the home indicator with a
+ * band of page ground showing beneath it — or, on a page that scrolls, with
+ * content visible in that band.
+ *
+ * It is the whole of the cost: `cover` hands the page the full screen and makes
+ * respecting the insets the page's job, which `--app-tabbar-total` in
+ * globals.css does for the one piece of chrome that reaches the bottom edge.
+ *
+ * `maximumScale` and `userScalable` are deliberately NOT set. Pinch-zoom is an
+ * accessibility affordance and locking it is a WCAG 1.4.4 failure; the reason
+ * apps usually reach for it — stopping iOS zooming on a focused input — is
+ * fixed properly by the 16px floor in globals.css instead.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

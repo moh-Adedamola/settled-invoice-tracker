@@ -68,7 +68,7 @@ export default async function ClientsPage({
           readOnly ? null : (
             <Link
               href="/clients/new"
-              className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
+              className="ring-inverse inline-flex h-control items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
             >
               New client
             </Link>
@@ -127,7 +127,7 @@ async function ClientList({
             action={
               <Link
                 href="/clients"
-                className="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+                className="inline-flex h-control items-center rounded-xs px-1 text-accent underline underline-offset-2 hover:text-accent-hover"
               >
                 Clear filters
               </Link>

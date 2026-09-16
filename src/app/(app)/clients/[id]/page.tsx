@@ -69,7 +69,7 @@ export default async function ClientDetailPage({
         eyebrow={
           <Link
             href={back}
-            className="rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
+            className="tap-target rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
           >
             ← Clients
           </Link>
@@ -103,7 +103,7 @@ export default async function ClientDetailPage({
             {client.email ? (
               <a
                 href={`mailto:${client.email}`}
-                className="money rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+                className="money tap-target rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
               >
                 {client.email}
               </a>
@@ -302,7 +302,7 @@ function Invoices({ client }: { client: Awaited<ReturnType<typeof getClient>> & 
         {client.invoices.length > 0 ? (
           <Link
             href={`/invoices?client=${client.id}`}
-            className="rounded-xs text-small text-accent underline underline-offset-2 hover:text-accent-hover"
+            className="inline-flex h-control items-center rounded-xs px-1 text-small text-accent underline underline-offset-2 hover:text-accent-hover"
           >
             Open in the ledger
           </Link>
@@ -454,7 +454,7 @@ function Payments({ client }: { client: Awaited<ReturnType<typeof getClient>> & 
                       {payment.invoiceNumber ? (
                         <Link
                           href={`/invoices/${payment.invoiceId}`}
-                          className="money rounded-xs text-accent underline underline-offset-2"
+                          className="money tap-target rounded-xs text-accent underline underline-offset-2"
                         >
                           {payment.invoiceNumber}
                         </Link>

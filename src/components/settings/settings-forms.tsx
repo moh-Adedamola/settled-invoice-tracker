@@ -11,6 +11,7 @@ import {
 import { EMPTY_FORM_STATE, type FormState } from '@/lib/invoices/form-state';
 import { MIN_PASSWORD_LENGTH } from '@/lib/settings/form-schema';
 import { PresenceMark } from '@/components/ui/presence-mark';
+import { CHECKBOX_MARK } from '@/components/ui/control-classes';
 
 /* ==========================================================================
    The settings forms.
@@ -30,7 +31,7 @@ import { PresenceMark } from '@/components/ui/presence-mark';
    ========================================================================== */
 
 const field =
-  'h-9 w-full rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink placeholder:text-ink-muted';
+  'h-control w-full rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink placeholder:text-ink-muted';
 
 function Panel({
   title,
@@ -123,7 +124,7 @@ function SaveButton({ pending, label = 'Save' }: { pending: boolean; label?: str
     <button
       type="submit"
       disabled={pending}
-      className="ring-inverse inline-flex h-9 w-fit items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-60"
+      className="ring-inverse inline-flex h-control w-fit items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? 'Saving…' : label}
     </button>
@@ -270,13 +271,13 @@ export function ReminderSettingsForm({
           chasing off for a quiet month should not have to retype the ladder to
           turn it back on.
         */}
-        <label className="flex w-fit cursor-pointer items-center gap-2 text-small text-ink">
+        <label className="flex min-h-control w-fit cursor-pointer items-center gap-2 text-small text-ink md:min-h-0">
           <input
             type="checkbox"
             name="remindersEnabled"
             checked={values.remindersEnabled}
             onChange={(e) => setValues((v) => ({ ...v, remindersEnabled: e.target.checked }))}
-            className="h-3.5 w-3.5 accent-[var(--accent)]"
+            className={CHECKBOX_MARK}
           />
           Chase overdue invoices automatically
         </label>
@@ -372,7 +373,7 @@ export function NotificationSettingsForm({
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-micro uppercase text-ink-muted">Send an alert when</legend>
-          <label className="flex w-fit cursor-pointer items-center gap-2 text-small text-ink">
+          <label className="flex min-h-control w-fit cursor-pointer items-center gap-2 text-small text-ink md:min-h-0">
             <input
               type="checkbox"
               name="alertOnPaymentSuccess"
@@ -380,11 +381,11 @@ export function NotificationSettingsForm({
               onChange={(e) =>
                 setValues((v) => ({ ...v, alertOnPaymentSuccess: e.target.checked }))
               }
-              className="h-3.5 w-3.5 accent-[var(--accent)]"
+              className={CHECKBOX_MARK}
             />
             a payment succeeds
           </label>
-          <label className="flex w-fit cursor-pointer items-center gap-2 text-small text-ink">
+          <label className="flex min-h-control w-fit cursor-pointer items-center gap-2 text-small text-ink md:min-h-0">
             <input
               type="checkbox"
               name="alertOnPaymentFailure"
@@ -392,7 +393,7 @@ export function NotificationSettingsForm({
               onChange={(e) =>
                 setValues((v) => ({ ...v, alertOnPaymentFailure: e.target.checked }))
               }
-              className="h-3.5 w-3.5 accent-[var(--accent)]"
+              className={CHECKBOX_MARK}
             />
             a payment fails
           </label>
@@ -466,7 +467,7 @@ export function PasswordChangeForm() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex h-9 w-fit items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
+          className="inline-flex h-control w-fit items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover"
         >
           {succeeded ? 'Change it again' : 'Change password'}
         </button>

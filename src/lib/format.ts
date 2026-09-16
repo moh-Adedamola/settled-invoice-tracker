@@ -136,3 +136,34 @@ export function formatDateTime(date: Date): string {
     timeZone: BUSINESS_TIMEZONE,
   });
 }
+
+/**
+ * "08:29" — the time alone, in business time.
+ *
+ * For lists that carry the date in a group header, where repeating it on every
+ * row is the repetition the header exists to remove.
+ */
+export function formatTime(date: Date): string {
+  return date.toLocaleString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: BUSINESS_TIMEZONE,
+  });
+}
+
+/**
+ * A stable "which business day is this" key, e.g. "2026-09-15".
+ *
+ * `en-CA` because it is the locale that formats as ISO, which sorts and
+ * compares as a string. Deliberately NOT `toISOString().slice(0, 10)`: that is
+ * the UTC day, and a payment at 23:30 in Lagos is the next UTC day — grouping
+ * on it would file the evening's payments under tomorrow.
+ */
+export function businessDayKey(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: BUSINESS_TIMEZONE,
+  }).format(date);
+}

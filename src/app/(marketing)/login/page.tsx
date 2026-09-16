@@ -42,9 +42,14 @@ export default async function LoginPage() {
 
         <p className="mt-6 text-center text-small text-ink-muted">
           Just looking around?{' '}
+          {/* `tap-target`, not a grown box: this link sits inside a sentence,
+              and `min-h-control` would pull "View the public demo" out of the
+              line it belongs to. §7 allows the overlay where nothing sits
+              within 44px — measured here, the nearest control is the Sign in
+              button 28px away, so the 44px area clears it by 15px. */}
           <Link
             href="/demo"
-            className="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+            className="tap-target rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
           >
             View the public demo
           </Link>

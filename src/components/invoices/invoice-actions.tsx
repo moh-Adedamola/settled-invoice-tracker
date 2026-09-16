@@ -100,7 +100,7 @@ export function InvoiceWriteActions({
   }
 
   const routine =
-    'inline-flex h-9 items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-40';
+    'inline-flex h-control items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-40';
 
   // A terminal invoice has no transitions; say why rather than showing nothing
   // where a reader expects a control.
@@ -129,7 +129,7 @@ export function InvoiceWriteActions({
           title={hasLineItems ? undefined : 'Add a line item first'}
           className={
             hasLineItems
-              ? 'ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active'
+              ? 'ring-inverse inline-flex h-control items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active'
               : routine
           }
         >
@@ -145,7 +145,7 @@ export function InvoiceWriteActions({
         <button
           type="button"
           onClick={() => setPending('void')}
-          className="inline-flex h-9 items-center rounded-sm px-3 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-failed-bg hover:text-failed focus-visible:text-failed"
+          className="inline-flex h-control items-center rounded-sm px-3 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-failed-bg hover:text-failed focus-visible:text-failed"
         >
           Void
         </button>
@@ -192,7 +192,7 @@ function ConfirmPanel({
   }, [state.status, onDone]);
 
   const base =
-    'inline-flex h-9 items-center rounded-sm px-3.5 text-small font-medium transition-colors duration-[var(--duration-fast)] ease-standard disabled:cursor-not-allowed disabled:opacity-50';
+    'inline-flex h-control items-center rounded-sm px-3.5 text-small font-medium transition-colors duration-[var(--duration-fast)] ease-standard disabled:cursor-not-allowed disabled:opacity-50';
   const primary = `ring-inverse ${base} bg-accent text-accent-fg hover:bg-accent-hover active:bg-accent-active`;
   const danger = `${base} border border-failed-line bg-failed-bg text-failed`;
   const ghost = `${base} border border-line-strong text-ink hover:bg-row-hover`;

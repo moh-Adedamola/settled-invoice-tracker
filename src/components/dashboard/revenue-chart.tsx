@@ -76,10 +76,34 @@ export function RevenueChart({
               strokeDasharray="0"
               vertical={false}
             />
+            {/*
+              The year is carried by the first tick and by every January, and
+              dropped everywhere else.
+
+              Measured at 390x844: six `MMM YY` labels are 40px each in a 244px
+              plot area — 240px of label in 244px of room, so `Apr 26` and
+              `May 26` sat 0px apart with a 2px overlap at each boundary. They
+              were touching, not spaced.
+
+              Shortening to `MMM` takes the run to ~150px. Doing it
+              unconditionally would be wrong on a finance chart — a six-month
+              window can straddle a year end, and `Dec` next to `Jan` with no
+              year is genuinely ambiguous. So the two positions that resolve it
+              keep the year: the first tick anchors the axis, and January names
+              the year it starts.
+
+              A viewport-independent fix rather than a mobile-only one: this
+              chart is a client component, so a width-conditional formatter
+              would have to read the viewport in JavaScript and re-render, and
+              the short form is better at 1440px too.
+            */}
             <XAxis
               dataKey="monthLabel"
               tickLine={false}
               axisLine={{ stroke: 'var(--chart-grid)' }}
+              tickFormatter={(value: string, index: number) =>
+                index === 0 || value.startsWith('Jan') ? value : value.slice(0, 3)
+              }
               tick={{
                 fill: 'var(--chart-axis)',
                 fontSize: 11,

@@ -174,7 +174,7 @@ function SortBar({
             key={key}
             href={`/invoices${patchQuery(query, { sort: key, dir: next })}`}
             aria-current={active ? 'true' : undefined}
-            className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-xs px-1 text-small whitespace-nowrap ${
+            className={`inline-flex h-control-sm min-w-control-sm shrink-0 items-center justify-center gap-1 rounded-xs px-1 text-small whitespace-nowrap ${
               active
                 ? 'text-ink underline decoration-accent decoration-2 underline-offset-[6px]'
                 : 'text-ink-secondary'

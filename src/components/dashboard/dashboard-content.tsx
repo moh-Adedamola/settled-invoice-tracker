@@ -57,22 +57,41 @@ export async function DashboardContent({ readOnly }: { readOnly: boolean }) {
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    /* §6: these are sections, so `gap-section` — 28px below md, 24px above it.
+       The raw `gap-6` it replaces was the same 24px at every width, and 24px
+       was simultaneously the gap between two fields inside the filter panels.
+       One number cannot mean both; the token says which one this is. */
+    <div className="flex flex-col gap-section">
+      {/*
+        Order: what am I owed, what needs action, how are things going.
+
+        The chart used to sit second, between the figures and the two lists of
+        things to do. That is a desk reading order — at 1600px the overdue table
+        is on screen beside it anyway. On a phone it put 360px of six-month
+        trend between "7 overdue" and the seven, so the reader scrolled past
+        analysis to reach the work.
+
+        Changed at BOTH widths rather than reordered with CSS. `order` moves
+        boxes and leaves the DOM alone, so a screen reader and a keyboard would
+        still traverse the desk order while the page showed another — two
+        reading orders for one page. Action before analysis is defensible at
+        1600px too, which is what makes one order possible.
+      */}
       <KpiRow kpis={kpis} />
 
-      <RevenueChart data={chartData} currency={kpis.revenue.currency} />
-
       <OverdueTable invoices={overdue} />
+
+      <UnmatchedQueue payments={unmatched} readOnly={readOnly} />
+
+      <RevenueChart data={chartData} currency={kpis.revenue.currency} />
 
       {/* items-start: grid children stretch to the tallest by default, which
           left the provider card with ~300px of dead space below its four bars.
           Each card should be the height of its own content. */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-        <ProviderBreakdown providers={providers} />
+      <div className="grid grid-cols-1 items-start gap-section lg:grid-cols-2">
         <ActivityFeed entries={activity} />
+        <ProviderBreakdown providers={providers} />
       </div>
-
-      <UnmatchedQueue payments={unmatched} readOnly={readOnly} />
     </div>
   );
 }

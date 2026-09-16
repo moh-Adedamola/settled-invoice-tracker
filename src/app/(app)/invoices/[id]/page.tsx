@@ -125,7 +125,7 @@ export default async function InvoiceDetailPage({
         eyebrow={
           <Link
             href={back}
-            className="rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
+            className="tap-target rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
           >
             ← Invoices
           </Link>
@@ -165,7 +165,7 @@ export default async function InvoiceDetailPage({
                 shape of the app is honest, and it will resolve when it does. */}
             <Link
               href={`/clients/${invoice.client.id}`}
-              className="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+              className="tap-target rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
             >
               {invoice.client.name}
             </Link>

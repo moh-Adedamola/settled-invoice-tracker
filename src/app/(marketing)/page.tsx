@@ -123,7 +123,7 @@ function Masthead() {
             even on the page it points at. */}
         <Link
           href="/"
-          className="enter-expressive rounded-xs font-display text-h3 text-ink md:text-h2"
+          className="enter-expressive inline-flex min-h-control items-center rounded-xs font-display text-h3 text-ink md:min-h-0 md:text-h2"
           style={enter(0)}
         >
           Settled
@@ -137,7 +137,7 @@ function Masthead() {
           <ThemeToggle />
           <Link
             href="/login"
-            className="rounded-xs text-small text-ink-secondary underline-offset-4 transition-colors duration-[var(--duration-fast)] ease-standard hover:text-ink hover:underline"
+            className="inline-flex min-h-control min-w-control items-center justify-center rounded-xs text-small text-ink-secondary underline-offset-4 transition-colors duration-[var(--duration-fast)] ease-standard hover:text-ink hover:underline md:min-h-0 md:min-w-0"
           >
             Sign in
           </Link>
@@ -665,7 +665,7 @@ function Footer({
               {settings.businessEmail ? (
                 <a
                   href={`mailto:${settings.businessEmail}`}
-                  className="money w-fit rounded-xs text-ink-secondary underline-offset-4 hover:text-accent hover:underline"
+                  className="money inline-flex min-h-control min-w-control w-fit items-center justify-center rounded-xs text-ink-secondary underline-offset-4 hover:text-accent hover:underline md:min-h-0 md:min-w-0 md:justify-start"
                 >
                   {settings.businessEmail}
                 </a>
@@ -679,13 +679,13 @@ function Footer({
           <nav className="flex flex-col gap-2 text-small md:items-end">
             <Link
               href="/demo"
-              className="w-fit rounded-xs text-ink-secondary underline-offset-4 hover:text-accent hover:underline"
+              className="inline-flex min-h-control min-w-control w-fit items-center justify-center rounded-xs text-ink-secondary underline-offset-4 hover:text-accent hover:underline md:min-h-0 md:min-w-0 md:justify-start"
             >
               Live demo
             </Link>
             <Link
               href="/login"
-              className="w-fit rounded-xs text-ink-secondary underline-offset-4 hover:text-accent hover:underline"
+              className="inline-flex min-h-control min-w-control w-fit items-center justify-center rounded-xs text-ink-secondary underline-offset-4 hover:text-accent hover:underline md:min-h-0 md:min-w-0 md:justify-start"
             >
               Sign in
             </Link>
@@ -707,7 +707,7 @@ function Footer({
             href="https://refacint.com"
             rel="noopener noreferrer"
             target="_blank"
-            className="rounded-xs text-ink-secondary underline underline-offset-4 hover:text-accent"
+            className="inline-flex min-h-control items-center rounded-xs text-ink-secondary underline underline-offset-4 hover:text-accent md:min-h-0"
           >
             Refacint Technologies
           </a>

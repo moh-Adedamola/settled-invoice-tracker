@@ -1,9 +1,9 @@
-import Form from 'next/form';
-import Link from 'next/link';
-
 import type { InvoiceFilterOptions } from '@/lib/queries/invoices';
 import { EFFECTIVE_STATUSES } from '@/lib/queries/invoice-status';
+import type { EffectiveStatus } from '@/lib/queries/invoice-status';
 import { STATUS, invoiceStatusKey } from '@/components/ui/status-badge';
+import { FilterPanel } from '@/components/ui/filter-panel';
+import { FILTER_CHIP, CHECKBOX_MARK } from '@/components/ui/control-classes';
 
 /**
  * Filters as a GET form.
@@ -38,19 +38,47 @@ export function InvoiceFilters({
     selected.status.length > 0 ||
     Boolean(selected.clientId || selected.currency || selected.issuedFrom || selected.issuedTo || selected.q);
 
-  const field = 'h-9 rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
+  /* The collapsed row — see FilterPanel. Counts rather than lists for the
+     multi-select, because "3 statuses" fits a 340px row and the status names
+     do not. */
+  const clientName = selected.clientId
+    ? options.clients.find((c) => c.id === selected.clientId)?.name
+    : undefined;
+
+  const summary = [
+    selected.q ? `"${selected.q}"` : null,
+    clientName ?? null,
+    selected.status.length === 1
+      ? invoiceStatusKey(selected.status[0] as EffectiveStatus).label
+      : selected.status.length > 1
+        ? `${selected.status.length} statuses`
+        : null,
+    selected.currency || null,
+    selected.issuedFrom || selected.issuedTo
+      ? `${selected.issuedFrom || '…'} to ${selected.issuedTo || '…'}`
+      : null,
+  ].filter((v): v is string => Boolean(v));
+
+  const field =
+    'h-control rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink';
   // No bg-transparent: a select keeps the bg-overlay ground @layer base gives
   // it, which is what the OS paints the native popup from. See §7.
-  const selectField = 'h-9 rounded-sm border border-line-strong px-2.5 text-small text-ink';
+  const selectField =
+    'h-control rounded-sm border border-line-strong px-2.5 text-small text-ink';
   const label = 'text-micro uppercase text-ink-muted';
 
   return (
-    <Form
+    <FilterPanel
       action="/invoices"
-      className="flex flex-col gap-4 rounded-md border border-line bg-surface-raised p-4"
+      active={active}
+      summary={summary}
+      hidden={
+        <>
+          <input type="hidden" name="sort" value={selected.sort} />
+          <input type="hidden" name="dir" value={selected.direction} />
+        </>
+      }
     >
-      <input type="hidden" name="sort" value={selected.sort} />
-      <input type="hidden" name="dir" value={selected.direction} />
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex min-w-[220px] flex-1 flex-col gap-2">
@@ -123,7 +151,7 @@ export function InvoiceFilters({
           return (
             <label
               key={status}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xs border px-2 py-1 text-micro uppercase transition-colors duration-[var(--duration-fast)] ease-standard ${
+              className={`${FILTER_CHIP} ${
                 checked
                   ? `${entry.className} border-l-[3px]`
                   : 'border-line-strong text-ink-secondary hover:bg-row-hover hover:text-ink'
@@ -134,7 +162,7 @@ export function InvoiceFilters({
                 name="status"
                 value={status}
                 defaultChecked={checked}
-                className="h-3 w-3 accent-[var(--accent)]"
+                className={CHECKBOX_MARK}
               />
               {/* The marker travels with the colour — §3.3. */}
               <span aria-hidden="true" className="text-[10px] leading-none">
@@ -146,22 +174,6 @@ export function InvoiceFilters({
         })}
       </fieldset>
 
-      <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
-        >
-          Apply filters
-        </button>
-        {active ? (
-          <Link
-            href="/invoices"
-            className="rounded-xs text-small text-accent underline underline-offset-2 hover:text-accent-hover"
-          >
-            Clear all
-          </Link>
-        ) : null}
-      </div>
-    </Form>
+    </FilterPanel>
   );
 }

@@ -33,7 +33,7 @@ export function ClientWriteActions({
   const [confirming, setConfirming] = useState(false);
 
   const routine =
-    'inline-flex h-9 items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover';
+    'inline-flex h-control items-center rounded-sm border border-line-strong px-3 text-small text-ink transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover';
 
   if (confirming) {
     return (
@@ -66,7 +66,7 @@ export function ClientWriteActions({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="inline-flex h-9 items-center rounded-sm px-3 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink focus-visible:text-ink"
+        className="inline-flex h-control items-center rounded-sm px-3 text-small text-ink-muted transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink focus-visible:text-ink"
       >
         Archive
       </button>
@@ -75,7 +75,7 @@ export function ClientWriteActions({
 }
 
 const button =
-  'inline-flex h-9 items-center rounded-sm px-3.5 text-small font-medium transition-colors duration-[var(--duration-fast)] ease-standard disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex h-control items-center rounded-sm px-3.5 text-small font-medium transition-colors duration-[var(--duration-fast)] ease-standard disabled:cursor-not-allowed disabled:opacity-50';
 const ghost = `${button} border border-line-strong text-ink hover:bg-row-hover`;
 
 function RestoreButton({ clientId }: { clientId: string }) {

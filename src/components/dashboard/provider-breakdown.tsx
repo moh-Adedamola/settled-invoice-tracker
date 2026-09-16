@@ -1,5 +1,6 @@
 import type { ProviderTotal } from '@/lib/queries/dashboard';
 import { currencySymbol, formatMinorDigits } from '@/lib/format';
+import { DeskSection } from './desk-section';
 
 /**
  * Magnitude by category, four fixed categories — horizontal bars with direct
@@ -26,16 +27,38 @@ const LABEL: Record<string, string> = {
 export function ProviderBreakdown({ providers }: { providers: ProviderTotal[] }) {
   const max = providers.reduce((m, p) => (p.totalMinor > m ? p.totalMinor : m), 0n);
 
-  return (
-    <section
-      aria-label="Revenue by provider"
-      className="flex flex-col rounded-md border border-line bg-surface-raised"
-    >
-      <div className="flex items-baseline justify-between gap-4 border-b border-line-subtle px-4 py-3">
-        <h2 className="text-h3 text-ink">By provider</h2>
-        <p className="text-small text-ink-muted">Last 6 months</p>
-      </div>
+  /*
+    Desk work. Which gateway brought what over six months is reference — it
+    settles no question a reader has on a phone, and it measured ~460px sitting
+    above the unmatched queue, which is the one block that IS a to-do list.
+    Collapsed below md, unchanged above it. See DeskSection.
 
+    The collapsed row still names the leader and the total, so the reader can
+    tell whether opening it would tell them anything.
+  */
+  const leader = providers.reduce(
+    (best, p) => (p.totalMinor > best.totalMinor ? p : best),
+    providers[0],
+  );
+
+  return (
+    <DeskSection
+      title="By provider"
+      aside="Last 6 months"
+      summary={
+        providers.length === 0 || !leader || leader.totalMinor === 0n ? (
+          'No payments in the last 6 months'
+        ) : (
+          <>
+            {providers.length} providers · {LABEL[leader.provider]} leads with{' '}
+            <span className="money">
+              {currencySymbol(leader.currency)}
+              {formatMinorDigits(leader.totalMinor, leader.currency)}
+            </span>
+          </>
+        )
+      }
+    >
       <ul className="flex flex-col gap-4 p-4">
         {providers.map((provider) => {
           // Percentage of the largest bar. Integer maths on bigint, then a
@@ -80,6 +103,6 @@ export function ProviderBreakdown({ providers }: { providers: ProviderTotal[] })
           );
         })}
       </ul>
-    </section>
+    </DeskSection>
   );
 }

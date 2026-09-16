@@ -41,7 +41,7 @@ export default async function EditInvoicePage({
       <>
         <PageHeader
           eyebrow={
-            <Link href={`/invoices/${invoice.id}`} className="rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline">
+            <Link href={`/invoices/${invoice.id}`} className="tap-target rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline">
               ← {invoice.number}
             </Link>
           }
@@ -60,7 +60,7 @@ export default async function EditInvoicePage({
             </p>
             <Link
               href={`/invoices/${invoice.id}`}
-              className="mt-4 inline-flex h-9 items-center rounded-sm border border-line-strong px-3 text-small text-ink hover:bg-row-hover"
+              className="mt-4 inline-flex h-control items-center rounded-sm border border-line-strong px-3 text-small text-ink hover:bg-row-hover"
             >
               Back to the invoice
             </Link>
@@ -76,7 +76,7 @@ export default async function EditInvoicePage({
     <>
       <PageHeader
         eyebrow={
-          <Link href={`/invoices/${invoice.id}`} className="rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline">
+          <Link href={`/invoices/${invoice.id}`} className="tap-target rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline">
             ← {invoice.number}
           </Link>
         }

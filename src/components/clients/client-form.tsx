@@ -49,7 +49,7 @@ export function ClientForm({
   const errorsFor = (path: string) => state.fieldErrors?.[path];
 
   const field =
-    'h-9 w-full rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink placeholder:text-ink-muted';
+    'h-control w-full rounded-sm border border-line-strong bg-transparent px-2.5 text-small text-ink placeholder:text-ink-muted';
 
   return (
     <form action={formAction} className="flex max-w-[70ch] flex-col gap-6">
@@ -145,13 +145,13 @@ export function ClientForm({
         <button
           type="submit"
           disabled={pending}
-          className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-60"
+          className="ring-inverse inline-flex h-control items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? 'Saving…' : submitLabel}
         </button>
         <Link
           href={cancelHref}
-          className="rounded-xs text-small text-ink-secondary underline underline-offset-2 hover:text-ink"
+          className="inline-flex h-control items-center rounded-xs px-1 text-small text-ink-secondary underline underline-offset-2 hover:text-ink"
         >
           Cancel
         </Link>

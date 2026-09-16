@@ -401,17 +401,61 @@ made literal, and it is instantly recognisable.
 
 | Token | Size | Line height | Weight | Tracking | Family | Use |
 | --- | --- | --- | --- | --- | --- | --- |
-| `text-hero` | **clamp(2.5rem, 7.2vw, 5rem)** | 1.02 | 400 | −0.025em | Display | Landing hero only — the one fluid step |
+| `text-hero` | **clamp(2.5rem, 7.2vw, 5rem)** | 1.02 | 400 | −0.025em | Display | Landing hero only |
 | `text-display` | 56px | 1.04 | 400 | −0.022em | Display | Fixed display step |
 | `text-h1` | 34px | 1.16 | 500 | −0.018em | **Display** | Wordmark, empty-state headline — **`(marketing)` only** |
-| `text-h2` | 24px | 1.25 | 600 | −0.014em | Sans | Page title, section, modal title, in-app empty state — **the ceiling in `(app)`** |
-| `text-h3` | 18px | 1.35 | 600 | −0.008em | Sans | Card and section title |
-| `text-h4` | 15px | 1.4 | 600 | −0.003em | Sans | Subsection, form group |
+| `text-h2` | **clamp(1.5rem, 1.393rem + 0.45vw, 1.75rem)** — 24→28 | 1.25 | 600 | −0.014em | Sans | Page title, section, modal title, in-app empty state — **the ceiling in `(app)`** |
+| `text-h3` | **clamp(1.1875rem, 1.147rem + 0.17vw, 1.25rem)** — 19→20 | 1.35 | 600 | −0.008em | Sans | Card and section title |
+| `text-h4` | **16px** | 1.35 | 600 | −0.003em | Sans | **The headline of a stacked list entry**; subsection, form group |
 | `text-body` | 14px | 1.55 | 400 | 0 | Sans | Default |
-| `text-small` | 13px | 1.45 | 400 | 0.002em | Sans | Table cells, help text |
+| `text-small` | **14px below `md`, 13px at `md`+** | 1.45 | 400 | 0.002em | Sans | Table cells, help text |
 | `text-micro` | 11px | 1.3 | 500 | 0.06em | Sans, uppercase | Column headers, form labels, **KPI labels**, metadata |
 
-**`text-hero` is the only fluid step, and it does not replace `text-display`.**
+#### What 390px measured, and what it changed
+
+Rendered scale on `/payments` at 390×844, before: **24 / 13 / 11 / 10**. A 3955px page
+whose only typographic emphasis was the word "Payments". `text-h3` and `text-body` did not
+appear on it at all.
+
+That is two faults, and they need opposite fixes.
+
+**The scale had a non-step.** `text-body` 14px against `text-small` 13px is **1.077×** —
+measured side by side on `/dashboard`, indistinguishable at arm's length. Two body sizes
+that close are one body size and a rendering bug. 13px earns its density in a table, and
+§8 renders no table below `md`, so the step now simply goes away where it stops paying:
+`text-small` computes to 14px below `md` and returns to 13px above it. **Below `md` there
+is exactly one body size.**
+
+**The pages skipped rungs.** The 1.85× cliff from 13px to 24px was not a missing token —
+`text-h3` and `text-h4` were both defined and neither was used in a list. So `text-h4`
+moves 15px → **16px** and acquires a stated job: *the headline of a stacked list entry* —
+the client name on a payment card, the invoice number on a match candidate. At 15px it sat
+1.07× above body, the same non-step being removed elsewhere. At 16px against 14px it is
+1.14×, carried the rest of the way by weight 600 against 400.
+
+`text-h3` moves 18px → **19px** at the low end for a related reason: a card title at 18px
+against row headlines at 16px is 1.125× apart, and the card title did not separate from its
+own contents. 19/16 is 1.19×.
+
+**The rendered ladder at 390px is now 24 / 19 / 16 / 14 / 11** — steps of 1.26, 1.19, 1.14,
+1.27. The 1.14 is the weakest and is the one weight carries.
+
+#### `text-h2` and `text-h3` are fluid; the rest are not
+
+Three fluid steps now, on the same argument `text-hero` established: a heading that is
+right at 1440px is not right at 390px, and a fixed step has to be wrong at one end.
+
+- `text-h2` — 24.04px at 390, 28px at 1440. The low end is deliberately today's fixed
+  value; 24px measured correctly as a page title on a phone and there was no reason to
+  move what was already right. The change is at the desktop end.
+- `text-h3` — 19.01px at 390, 20px at 1440.
+
+Everything below h3 stays fixed. Body text does not want to track the viewport — it wants
+to be 14px — and a scale where every step moved would make vertical rhythm unpredictable at
+every width, which is the reason this section gave for keeping `text-hero` alone in the
+first place. Three exceptions, all headings, all justified individually.
+
+**`text-hero` does not replace `text-display`.**
 §2 opens the landing page to "display type at 3.5rem+", which a fixed step cannot express:
 56px is too large beside a 360px viewport and too small across 1920px. So the hero tracks
 the viewport between 2.5rem — two words per line at 360px, measured — and 5rem, the
@@ -423,9 +467,20 @@ rhythm unpredictable at every width. One step is fluid because exactly one surfa
 it, and `text-display` remains the 56px step for any display-face heading that is not the
 landing hero.
 
-KPI figures use Plex Mono at **`text-h3` (18px), weight 500** — one size, every
-tile, every width. This is the one place the mono appears large, and it is the
-dashboard's typographic signature.
+KPI figures use Plex Mono at **`text-h3`, weight 500** — one size, every tile, at `md` and
+above. This is the one place the mono appears large, and it is the dashboard's typographic
+signature.
+
+**Below `md` the row is not a row of tiles and the rule does not apply.** `auto-fit`
+resolves to one column at 390px, so five equal tiles became five identical bordered boxes
+stacked 604px tall with every figure at the same size and weight — a five-way tie, on the
+page whose whole job is to say what matters. The phone layout is three tiers instead
+(§8, "The dashboard on a phone"), and the tier is what sets the size: **`text-h2` for the
+hero figure, `text-h4` for an alert count, `text-small` for context.** One size per tier,
+which is the same rule applied to a layout that has tiers.
+
+Measured before committing to `text-h2`: the widest figure this renders,
+`≈₦38,689,993.98`, is ~216px against a 308px content box at 390px.
 
 **This corrects an earlier rule.** `text-h1` was specified first, then `text-h2`
 sized by tile count. Both came from arithmetic about character widths, and both
@@ -530,8 +585,78 @@ three. `globals.css` declares real fallbacks, so the app is legible before this 
 `0.5`=2 · `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48
 · `16`=64 · `20`=80 · `24`=96 (Tailwind's default 4px scale; no override needed).
 
-Conventions: 4 inside a badge · 8 between related controls · 12 table cell padding ·
-16 card padding · 24 between cards · 32 between page sections · 64+ marketing sections.
+Conventions: 4 inside a badge · 12 table cell padding · 16 card padding.
+
+### Separation — four steps that mean four things
+
+The numeric scale above is what is *available*. These four tokens are what a layout
+**chooses**, and layout spacing uses them rather than raw steps.
+
+| Token | <`md` | `md`+ | Expresses |
+| --- | --- | --- | --- |
+| `gap-within` / `p-within` | 8px | 8px | Label to its control, chip to chip, icon to text |
+| `gap-group` | 16px | 16px | Field to field; **entry to entry inside a list** |
+| `gap-section` | **28px** | 24px | Card to card, section to section |
+| `gap-region` | **48px** | 32px | Filter panel to results, page header to body |
+
+#### Why this exists
+
+Measured at 390×844, the whole application used **five or six distinct gap values topping
+out at 24px**, and 24px was doing two incompatible jobs — "a new major section begins" and
+"the next row of this form". Neither reading survived. Most gaps were literally zero: 31 of
+63 on `/dashboard`, 25 of 40 on `/payments`.
+
+The marketing page, from this same tokens file, measured **thirteen distinct gaps reaching
+56px**, and spends 40–56px exclusively on section breaks. That is the whole of why one
+reads as composed and the other as a wall. The app had no gap that means *stop here*.
+
+Naming them for the relationship rather than the number is the point: `gap-6` at a call
+site records a pixel count, and every reviewer who sees it has to re-derive what it was for.
+`gap-region` records the intent, and the system can then change the pixels at a breakpoint
+without visiting the call site.
+
+#### The two large steps get bigger on a phone, not smaller
+
+This is the counterintuitive half, and it is the direct answer to *24px cannot mean both*.
+
+At 1440px a card's own edges, the column gutter and the whitespace either side of the
+measure are all doing separation work, so the gap between two cards is one signal among
+several. At 390px none of those exist — the column is the full width, and every block is
+the same width as every other block. Vertical distance is the **only** grouping signal
+left, so it has to carry more, not less. Hence 28/48 at touch against 24/32 at pointer.
+
+#### Stacked entries are separated, never merely divided
+
+A hairline between two identical blocks says *these are rows of one thing*. It does not say
+*this is a different payment*. Measured: 25 consecutive 115px cards on `/payments` at **0px
+apart**, 20 match candidates at **0px apart**, distinguished only by a 1px rule.
+
+The rules:
+
+1. **A stacked list entry never has a zero gap below `md`.** `gap-group` (16px) is the
+   floor for a multi-line entry; `gap-within` (8px) for a single-line one.
+2. **A run longer than eight entries carries grouping headers — when the groups are
+   groups.** Date, status, or initial, whatever the list is actually ordered by.
+   `gap-region` above the header, `gap-group` below it.
+
+   **This rule was written from the run length and it is only half right.** Built on
+   `/payments`, which renders 25 entries, day grouping took the page from **3955px to
+   4914px**: the 25 payments fall across ~18 distinct days, so it produced roughly one
+   header per card, and each singleton day paid a header, a `gap-region` and a `gap-group`
+   to separate one item from one item — 61px of chrome per payment to say what the card
+   already said.
+
+   That is a fact about this domain rather than about that page: a business issuing 54
+   payments over six weeks has one or two on most days. **Check the average group size, not
+   the run length.** Below roughly three entries per group the header is a label, not a
+   group, and the differentiation has to come from inside the entry instead.
+3. **Entry height varies with content below `md`.** No fixed-height list rows.
+
+On (3), `/clients` is the accidental proof and is worth copying deliberately: its cards
+measured 89–103px because email addresses differ in length, and that variation alone was
+enough that the repetition detector never registered a run — while `/payments`, whose cards
+are a fixed 115px, registered a run of 25. Equal-height rows are a table's virtue. A
+stacked list is not a table, and inheriting that virtue is what produced the wall.
 
 ### Radius — tight and engraved
 
@@ -567,6 +692,102 @@ covers, and the border alone does not do it. Scrim: `rgb(0 0 0 / 0.62)` dark,
 ---
 
 ## 7. Components
+
+### Control size — one scale, two ends
+
+**Every interactive control clears 44×44px below `md`.** Use the tokens; do not write
+heights at call sites.
+
+| Token | <`md` | `md`+ | Applies to |
+| --- | --- | --- | --- |
+| `h-control-sm` / `size-control-sm` | **44px** | 32px | Ghost and compact controls, nav items, sort headers, theme toggle |
+| `h-control` | **44px** | 36px | **The default** — buttons, inputs, selects, textareas |
+| `h-control-lg` | **48px** | 40px | The primary action of a page or form |
+| `size-mark` | 16px | 16px | The *visual* box of a checkbox or radio — **not** its hit area |
+
+Below `md` there are only two distinct values, because the difference between 32px and 36px
+is one a pointer can use and a finger cannot.
+
+**Two deliberate exceptions, both raw and both correct:**
+
+- **The landing page's two hero CTAs are `h-11` (44px) at every width.** §2 gives that page
+  full ambition and its call to action is one size everywhere; no control token expresses
+  "fixed 44 at all widths", and `h-control-lg` would shrink them to 40px at desktop. They
+  already clear the minimum, so the token would cost something and buy nothing.
+- **`h-11` on a table cell is a row height, not a control height** (§7, Table: 44px rows).
+  Tables only render at `md` and above, where the control scale is a different number for a
+  different reason. Do not "fix" those to `h-control`.
+
+`h-control-lg` is currently unclaimed — it exists for a page whose primary action should
+outweigh its secondaries, and nothing has needed that yet.
+
+#### What was measured
+
+At 390×844: **21 of 21** controls on `/invoices/new`, **24 of 25** on `/settings`, **15 of
+16** on `/dashboard` rendered under 44×44. Every one of them was `h-8` or `h-9`. Checkboxes
+measured **12×12px** in the filter panels and 14×14px in settings. The list card row, at
+94–115px, was the only element in the product that cleared 44px — and it clears it by
+accident of content, not by specification.
+
+#### Why they step down at `md` rather than staying large
+
+44px is a **touch** minimum, not a universal one. WCAG 2.2 AA (2.5.8 Target Size, Minimum)
+sets the universal floor at 24×24 CSS px, which 32px already clears; the 44×44 figure is
+2.5.5 AAA and Apple's 44pt, and both are stated about fingers.
+
+A ledger is read by comparison down a column. A 1600px table of 44px rows shows roughly a
+third fewer rows than one of 32px rows and buys a mouse nothing for it — density is the
+product at desktop and a hazard at touch, so the scale says so rather than picking one and
+making the other wrong.
+
+#### Why the threshold is a width query and not `pointer: coarse`
+
+`(pointer: coarse)` is the semantically correct question and the wrong one to ask. It
+answers for the *primary* pointer, so a touchscreen laptop reports coarse and gets 44px
+controls in a 1600px ledger, while an iPad driven from a Magic Keyboard reports fine and
+gets 32px controls under a finger. Both fail in the direction that matters.
+
+`md` is also already this application's touch boundary — §8 puts the table → stacked-entry
+switch there on a separate argument about column comparison. One threshold governs both, so
+no page can render 44px controls above a table or 36px controls above a card list.
+
+#### Growing the hit area without growing the control
+
+Some controls are the right size and the wrong target: a 16px checkbox, a `← Invoices` back
+link measuring 71.9×14, an inline client-name link at 138.8×17. A 44px box around a tick, or
+a slab of dead ground around a word, fixes the target and breaks the design.
+
+`tap-target` draws a centred pseudo-element at `min(--tap-min)` — 44px below `md`, 0 above
+it. The `::after` belongs to the control's own box, so it is genuinely tappable area rather
+than a decoration that looks like one.
+
+**It is for isolated controls only.** Two of them side by side overlap, and the overlap goes
+to whichever paints later rather than to whichever the reader aimed at. A 28px control in a
+row of three needs 44px of *real* box each — three 44px overlays fighting over 84px of strip
+means the reader aims at "system" and gets "dark", which is worse than the small target was.
+**Grow the real box in a group; overlay only where nothing sits within 44px.** The theme
+toggle is the worked example: three segments, all `size-control-sm`, measured 44×44 at 46px
+centres with no overlap.
+
+#### Checkbox and radio — the mark is not the target
+
+The common case, and the one that measured worst. The **label** is the control's hit area,
+so give the label the height and the input the mark:
+
+```html
+<label class="inline-flex min-h-control cursor-pointer items-center gap-2 md:min-h-0">
+  <input type="checkbox" class="size-mark shrink-0 accent-[var(--accent)]" />
+  <span class="text-small">Succeeded</span>
+</label>
+```
+
+`min-h-control` rather than `h-control`: a filter chip whose label wraps to two lines needs
+to grow past 44px, not clip. `md:min-h-0` returns the row to its natural height at pointer
+widths, where the label text alone is the target and 44px of vertical padding around a chip
+would be dead space.
+
+A bare `<input type="checkbox">` with no wrapping label has no hit area to grow and no
+accessible name either. It is always a bug; fix the name and the target follows.
 
 ### Focus ring — applies to everything
 
@@ -922,8 +1143,12 @@ zeroed, when the queue is empty — a standing "0 unmatched" is furniture people
 | **Ghost** | transparent, `fg-secondary` | `bg-raised`, `fg-primary` | `bg-inset` | `--ring-focus` | 40% opacity | as above |
 | **Destructive** | transparent, 1px `failed-line`, `failed` text | `failed-bg` ground | `failed-bg`, border `failed` | `--ring-focus` with `failed` in place of accent | 40% opacity | as above |
 
-Heights 32 / 36 / 40px (sm/md/lg), `radius-sm`, `text-small` weight 500, padding
-`0 14px`, icon gap 6px.
+Heights come from the control scale above — `h-control-sm` / `h-control` / `h-control-lg`,
+which is 44 / 44 / 48px below `md` and 32 / 36 / 40px at `md`+. Never write `h-8`/`h-9` on a
+button. `radius-sm`, `text-small` weight 500, padding `0 14px`, icon gap 6px.
+
+An icon-only button also needs `min-w-control*` or `size-control*`; height alone leaves a
+44×28 target, which fails the rule on the axis nobody checks.
 
 Destructive is outline-first, not a red fill: on a ledger a solid red block reads as a
 status, and Settled already uses red for `failed`. It only fills on hover, at the point
@@ -960,8 +1185,14 @@ the pending state without motion.
 ### Text input and select
 
 - Default: **ground inherited from the container** (`bg-transparent`), 1px
-  `--line-strong` (the 3:1 token — required), `radius-sm`, 36px, padding `0 10px`,
-  `text-body`, `fg-primary`. Placeholder `fg-muted`.
+  `--line-strong` (the 3:1 token — required), `radius-sm`, **`h-control`** (44px at touch,
+  36px at `md`+), padding `0 10px`, `text-body`, `fg-primary`. Placeholder `fg-muted`.
+
+  A 16px font size on the input is also load-bearing at touch and is what `text-body` gives:
+  iOS Safari zooms the viewport on focus for anything under 16px, and the zoom does not
+  reverse on blur — the reader is left on a page 1.3× too wide with no way back but a
+  pinch. `text-body` is 14px, so **inputs take `text-base` (16px) below `md`**, which is the
+  one place in the app that size appears.
 
   **This was `bg-inset` and that was wrong.** On the login card the rendered input came
   out at luminance 0.00496 against a card at 0.01128 — 44% of the card, and below even
@@ -1164,6 +1395,76 @@ line cannot be removed — and say why in a `title`. That differs from §7's rul
 *viewer* affordances, which are hidden: a control that is disabled for a reason the user
 can change is worth showing; one they can never use is not.
 
+### Filter panel
+
+One component — `components/ui/filter-panel.tsx` — for every list: payments, invoices,
+clients. Open at `md` and above, exactly as all three shipped. **Collapsed below it, with
+whatever is applied named in the closed row.**
+
+Measured at 390×844: the payments form ran **484px, 57% of a screen**, between the page
+header and the first payment — search, currency, two date pickers, four status checkboxes,
+four provider checkboxes, an "only unmatched" toggle and Apply, all open, all with **12×12px**
+checkboxes. `/invoices` was 472px of the same. Collapsed, the row is **78px**.
+
+**Collapsed does not mean inactive.** The fields stay in the DOM at `display: none`, so an
+applied filter keeps submitting while the panel is shut. That is what makes the summary
+load-bearing rather than decorative: the reader must be able to see what is filtering their
+list without opening anything, or a collapsed panel becomes a place for state to hide. Each
+list passes `summary` as one short phrase per applied filter — `"sabi" · Awaiting a match ·
+2 statuses · NGN`. Counts rather than lists for multi-selects: "2 statuses" fits a 340px row
+and the status names do not.
+
+**It is a client component, and `<details>` cannot do this job.** `open` is a single DOM
+attribute, so it cannot be false below `md` and true above it, and the trick `DeskSection`
+uses — render the children twice — is unavailable here, because duplicating form fields
+would duplicate their `name`s and submit every filter twice. So the state is real and the
+breakpoint moves the panel's class: `hidden md:flex` when closed, `flex` when open, with the
+toggle rendered `md:hidden`. `aria-expanded` + `aria-controls` on a real button rather than
+the checkbox-hack that would have kept it server-rendered — a checkbox announces itself as a
+checkbox, and this is a disclosure.
+
+Apply and Clear all live in the panel rather than at each call site, so all three lists get
+the same controls at the same `h-control`.
+
+### Ranked choice lists — the match panel
+
+The pattern for "here are the options, ordered, pick one". Currently one instance: placing
+an unmatched payment against an invoice.
+
+**A correct sort order is invisible if every row looks the same.** Measured at 390×844:
+twenty candidates, each 113px, **zero gap**, and **fifteen of the twenty read "Already
+settled in full"**. The query's ranking — same client, then amount proximity, then recency —
+was sound and unreadable, because position alone cannot carry an ordering whose basis the
+reader cannot see.
+
+Three rules, in the order they matter:
+
+1. **Split by whether the option can do the job, before ranking within it.** Invoices with
+   something outstanding are the list; fully-settled ones go behind a disclosure. Same-client
+   sorts first in SQL and it sorts *settled* same-client invoices first too, so the strongest
+   ranking signal was burying the answer. Splitting is not a re-ranking — the query's order
+   is untouched inside each group.
+2. **Draw the signals the rank is made of.** `Settles exactly` when the amount gap is zero,
+   `Same client` when the invoice belongs to whoever is on the payment. A row carrying both
+   is the answer and says *why*, rather than relying on being first. `Same client` was
+   previously a muted `· already on this payment` suffix — the strongest signal in the query
+   rendered as the quietest thing on the row.
+3. **The disclosure has to say what opening it would mean.** "10 already settled in full /
+   Matching one records an overpayment". A bare count cannot tell a reader whether those are
+   options or noise.
+
+**The rare-but-real case is demoted, never removed.** A duplicate transfer has to go
+somewhere; `getMatchCandidates` returns settled invoices deliberately and `ConfirmMatch`
+spells out the overpayment. Demoting the rare case is what lets the ordinary one be read.
+
+**Not capped by count.** Nine open candidates render in full at 390px. Capping a decision
+list would hide a valid target, which is different from the dashboard's overdue list, where
+the cap defers to a page built for reading all of them. A list you are choosing *from* shows
+its choices; a list you are glancing *at* may show its worst three.
+
+Applied at every width, not below `md` only — the argument is about legibility of rank, and
+it is as true at 1440px.
+
 ### Destructive and irreversible actions
 
 **Confirm in place, not in a modal.** §7 gives modals to things that need focus trapping
@@ -1319,10 +1620,82 @@ the full ledger.
 
 ## 8. Layout
 
-**Sidebar** 248px expanded, 60px collapsed to an icon rail. Manual toggle persisted to
-`localStorage`; auto-collapses below 1280px; becomes an overlay drawer below 900px.
-`bg-raised`, 1px `line-default` right edge. Active item: `accent-subtle` ground + 2px
-`accent` left rule + `fg-primary` label. Collapsed rail shows tooltips on hover.
+**Sidebar** 248px expanded, 60px collapsed to an icon rail, **at and above 900px only**.
+Manual toggle persisted to `localStorage`; auto-collapses below 1280px. `bg-raised`, 1px
+`line-default` right edge. Active item: `accent-subtle` ground + 2px `accent` left rule +
+`fg-primary` label. Collapsed rail shows tooltips on hover.
+
+**Below 900px: a bottom tab bar.** Not a drawer — see below.
+
+### Navigation below 900px is a bottom tab bar
+
+Five destinations — Dashboard, Invoices, Payments, Clients, Settings — in a `grid-cols-5`
+bar fixed to the bottom edge. 56px tall plus `env(safe-area-inset-bottom)`, a 20px glyph
+over an 11px label, `bg-raised` with a 1px `line` top rule. Active cell takes
+`accent-subtle` ground and a 2px `accent` **top** rule — the rail's left rule turned ninety
+degrees onto the bar it sits in, drawn with an inset shadow so activating a cell does not
+change its height.
+
+**This section previously specified an overlay drawer, and the shell shipped a horizontal
+top strip instead. Both are now superseded; neither is outstanding work.**
+
+#### What the strip measured
+
+| | |
+| --- | --- |
+| Items needed | **501px** (509px at 360px, where the mark is one letter) |
+| Scrollport given | **354px** at 390px |
+| Hidden at rest | **147px — 29% of the primary navigation** |
+| Permanently past the fold | **Clients, Settings** |
+
+On every authenticated page, at every scroll position, behind an `overflow-x: auto`
+scroller with nothing announcing it. The keyboard-focus correction that used to live in
+`sidebar.tsx` — restoring `scrollLeft` when Tab parked a partly-clipped item under the
+edge — existed only to service that overflow, and was deleted with it.
+
+#### Why a tab bar and not the drawer
+
+Five destinations fit a tab bar exactly: 390 ÷ 5 = **78px per cell** against a 44px
+minimum, and 64px per cell even at a 320px floor. Nothing scrolls and nothing is hidden.
+
+A drawer costs a trigger, a tap, an overlay, a focus trap and an escape key to show five
+items that already fit on one bar — and it would put every destination one interaction
+further away than the strip it replaced, on the surface where navigation was already the
+worst-measuring thing in the product.
+
+#### Why the bottom, and what it recovers
+
+A phone is held at the bottom, but the structural argument is better than the ergonomic
+one: **a bar pinned to the bottom covers the end of the scrollport rather than the start.**
+
+So `--sticky-top` drops to `0` below 900px. The 49px of top strip is recovered twice over —
+once as viewport height, and again because every ledger column header that was offset
+beneath it returns to y=0. The cost moves to `padding-bottom` on `<main>`, which scrolls
+with the content instead of occupying the top of every screen.
+
+| Viewport | Chrome above content | Chrome below | Usable | |
+| --- | --- | --- | --- | --- |
+| 390×844, before | 49px strip (pinned) | — | 795px | 94% |
+| 390×844, after | **0** | 57px tab bar | 787px | 93% |
+
+Near-identical totals, and that is the point: the same pixels now sit where they do not
+push the page's first line down, and the reader's thumb is on them.
+
+#### Consequences the shell has to carry
+
+- **`viewportFit: 'cover'`** in the root `viewport` export, or `env(safe-area-inset-bottom)`
+  reports 0px and the bar floats above the home indicator.
+- **`padding-bottom: var(--app-tabbar-total)` on `<main>`**, collapsing to 0 at 900px. The
+  bar is `fixed` and out of flow; without it the last ledger row sits underneath.
+- **The home mark moved to the shell header** below 900px. A sixth cell would cost every tab
+  13px to duplicate a destination the Dashboard tab already reaches — but the mark is also
+  the only route back to `/` for an anonymous reader in the demo, which no tab goes to.
+- **The account readout (`email · ROLE`) is hidden below `md`.** Measured at 390px with it
+  shown, the header wanted 577px of a 390px viewport and pushed the document into a 32%
+  horizontal overflow, which stretched the tab grid to 115px cells. The touch scale is what
+  made it unaffordable: the theme toggle alone is three 44px segments, 136px of a 342px
+  content box. The readout is the only member of that header that is not a control, and
+  Settings answers the same question.
 
 **Content max-width** 1600px for data pages with 24px gutters (32px at ≥1280px) — the
 ledger wants width. Forms and settings constrained to **720px** regardless of viewport;
@@ -1526,26 +1899,106 @@ mechanism that looks obviously correct.
 The public demo dashboard is the exception: its summary cards stack normally, since they
 are cards already rather than a table.
 
-**Below 900px the sidebar becomes a horizontal scrolling strip, not an overlay
-drawer.** This is a decision, not an unfinished drawer.
+**Below 900px the sidebar becomes a bottom tab bar** — see "Navigation below 900px is a
+bottom tab bar" earlier in this section for the specification and the measurements.
 
-The nav has five fixed destinations and no hierarchy. A drawer would introduce a
-mode — open/closed state, a scrim, focus trapping, an escape key, a
-restore-focus path — to reach five links that fit on one line. The strip keeps
-every destination visible and one tap away, and costs no state at all.
+**This corrects an earlier rule.** The text here used to defend a horizontal scrolling
+strip on the grounds that a drawer "would introduce a mode to reach five links that fit on
+one line", and set its own trigger to revisit: *when the nav outgrows one line at 360px.*
 
-Revisit it when the nav outgrows one line at 360px, or when it gains nesting. At
-that point a drawer earns its complexity; today it would only add failure modes.
+That trigger had already fired when the rule was written. The five items needed **509px at
+360px** and 501px at 390px, against a 354px scrollport — 29% of the navigation was off the
+right edge at rest, permanently, and the keyboard-focus correction in `sidebar.tsx` existed
+solely to service that overflow. The argument against the drawer was sound and still is;
+the premise that the strip fit was never true, and one line was the wrong line. The tab bar
+keeps the drawer's rejection and fixes the premise.
 
-The strip: `bg-surface-raised`, 1px `--line` bottom border, `overflow-x-auto`,
-4px item gap, 32px targets, and the same active treatment as the rail
-(`--accent-subtle` ground). It replaces the rail rather than sitting alongside
-it.
+### The dashboard on a phone: three tiers, not six blocks
+
+The stacked-entry work fixed legibility and left the page **4096px — 4.85 viewports of
+blocks at equal weight**: five identical KPI tiles, a chart, an overdue list, a provider
+breakdown, a fifteen-event feed and an unmatched queue, each bordered, each the same width,
+none louder than any other. A desk page rendered small.
+
+**What a phone reader wants from this page**, in order: *what am I owed, what needs action,
+how are things going.* Everything below follows from ranking against that.
+
+#### Block inventory
+
+| Block | Before | After | Decision |
+| --- | --- | --- | --- |
+| KPI row | 604px | **367px** | Restructured into three tiers |
+| Overdue invoices | 899px | **475px** | Capped at 3 entries + a route to the rest |
+| Unmatched payments | 775px | **550px** | Kept whole — it is the to-do list |
+| Revenue chart | 360px | **360px** | Kept, axis labels fixed |
+| Activity feed | ~600px | **74px** | Disclosure, latest event in the summary |
+| Provider breakdown | ~460px | **74px** | Disclosure, leader in the summary |
+| **Total** | **4096px / 4.85vh** | **2315px / 2.74vh** | |
+
+#### The KPI row becomes three tiers
+
+Outstanding is the hero — `text-h2`, alone in its box. Overdue and unmatched become **alert
+rows that are also links** to the sections listing them, because a count is a prompt and the
+reader's next move after reading "7 overdue" is always to go and look; on a phone that was a
+900px scroll past a chart. Total revenue and this month drop to an unboxed `text-small` pair
+under a hairline: §6 spends a border on "this is a separate object", and context is a
+footnote to the figure above it, not two more objects competing with it.
+
+#### What gets demoted, and why each
+
+**Provider breakdown → disclosure.** Which gateway brought what over six months is
+reference. It settles no question a reader has standing up, and it was sitting above the one
+block that is a to-do list.
+
+**Activity feed → disclosure.** A log answers "what happened", which is browsing, not
+deciding — and the three questions above are answered by the tiers, the two action lists and
+the chart. It was the second-largest block and the only one that decided nothing.
+
+**Neither is cut, and neither collapses to a bare count.** The rule is that nothing a reader
+would go looking for may be hidden — a disclosure is ranking, not hiding, but only if the
+closed row says enough to judge whether opening it is worth a tap. So the feed names its
+most recent event ("15 events · latest 16 Sept, 08:23"), which preserves the one live signal
+it carries: that money moved a minute ago. The provider row names the leader and its total.
+
+**The overdue list caps at three** with "See all 7 overdue invoices" → `/invoices?status=overdue`.
+The query sorts worst-first, so three answers "how bad is it", and the full count is stated
+twice before the link — once in the alert row, once in the section header.
+
+`DeskSection` implements the pattern. It renders its children twice, into a `<details>` that
+exists only below `md` and a `<section>` that exists only above it, because `<details>` has
+no CSS-only "always open" state: `::details-content` expresses it exactly and has no Firefox
+support, and forcing `display` on the children does not work because the UA hides them
+through the slot. The alternative was JavaScript to express a media query.
+
+#### Reading order is action-first, at every width
+
+The chart used to sit second, between the figures and the two lists of things to do — a desk
+order, where at 1600px the overdue table is on screen beside it anyway. The order is now
+KPI → overdue → unmatched → chart → feed/providers.
+
+**Changed in the DOM rather than with CSS `order`.** `order` moves boxes and leaves the
+document alone, so a screen reader and the Tab key would still traverse the desk order while
+the page showed another — two reading orders for one page. Action before analysis is
+defensible at 1600px too, which is what makes a single order possible.
+
+#### Chart axis labels: measured, not assumed
+
+At 390px the plot area is 244px and six `MMM YY` labels are 40px each — **240px of label in
+244px of room**, so `Apr 26` and `May 26` rendered 0px apart and overlapped by 2px at each
+boundary. They were touching.
+
+The fix is `MMM` alone, which takes the run to ~150px, **except at the first tick and at
+every January**. Dropping the year unconditionally is wrong on a finance chart: a six-month
+window can straddle a year end and `Dec` beside `Jan` is genuinely ambiguous. The first tick
+anchors the axis and January names the year it starts. Applied at every width rather than
+below `md` — the chart is a client component, so a width-conditional formatter would have to
+read the viewport in JavaScript, and the short form is better at 1440px too.
 
 ### Navigation is pinned, and `--sticky-top` is the contract
 
-All three navigation surfaces stay put on scroll: the strip below 900px, the rail at and
-above it, and the marketing masthead at every width. Before this, all three scrolled away.
+All three navigation surfaces stay put on scroll: the **tab bar** below 900px, the rail at
+and above it, and the marketing masthead at every width. Before this, all three scrolled
+away.
 The rail's failure was the quiet one — it *looked* anchored, because `align-items: stretch`
 gave it the document's height and it painted its ground the whole way down, but measured at
 1440×900 scrolled to y=700 it was `position: static` with its top 700px above the viewport.
@@ -1557,9 +2010,21 @@ Everything that needs clearance reads it rather than re-deriving it.
 
 | Context | `--sticky-top` | Why |
 | --- | --- | --- |
-| app shell, <900px | `49px` (`--app-nav-h`) | the strip is pinned across the top |
+| app shell, <900px | `0` | navigation is the **bottom** tab bar; nothing is pinned above content |
 | app shell, ≥900px | `0` | navigation is the vertical rail; nothing is pinned above content |
 | marketing segment | `76px` (`--masthead-h`), `56px` under `max-height: 480px` | set on the segment wrapper |
+
+The app shell is now zero at every width, and the token still earns its keep for two
+reasons: it **inherits**, so the marketing segment overrides it on its own wrapper and
+every descendant follows without knowing what the app shell does; and the ledger headers
+and focus clearance read one name rather than each re-deriving "is anything above me".
+Hard-coding `top-0` in the app would be correct today and wrong the first time any
+surface pins something again.
+
+`--app-nav-h` is gone with the strip. The bar's own height is **`--app-tabbar-h`** (56px),
+and **`--app-tabbar-total`** folds in `env(safe-area-inset-bottom)` so the shell has one
+number to pad with whether or not the device has a home indicator. Neither feeds
+`--sticky-top`; a bar at the bottom pins nothing above anything.
 
 It is a **variable rather than a constant because it inherits**. The marketing segment sets
 its own on its wrapper and every descendant follows, so nothing in that subtree needs to
@@ -1584,16 +2049,25 @@ in landscape:
 
 | Viewport | Chrome | Usable | |
 | --- | --- | --- | --- |
-| 360×640, app | 49px | 591px | 92% |
-| 844×390, app | 49px | 341px | 87% |
-| 844×390, landing | 56px | 334px | 86% |
+| 360×640, app | 57px tab bar (bottom) | 583px | 91% |
+| 844×390, app | 57px tab bar (bottom) | 333px | 85% |
+| 844×390, landing | 56px masthead (top) | 334px | 86% |
+
+The app's cost is unchanged in total and **moved to the bottom edge**, which is what makes
+it cheaper than the number suggests: it no longer displaces the first line of the page, and
+`--sticky-top` going to 0 gives every ledger column header its 49px back.
+
+A phone in landscape is the one case where a bottom bar is worse than a top one — 333px of
+usable height with the bar eating 14% of it. It is still the right trade: landscape is the
+rarer orientation for this app, and the alternative costs the same pixels in portrait,
+where the ledger is actually read.
 
 The masthead's shrink is keyed to `max-height: 480px`, **not** a width query — the cost of a
 sticky bar is measured in vertical space, so the condition that relieves it should be too.
 That also catches a short desktop window, which a width query would miss.
 
-**Grounds are not interchangeable between the two kinds of bar.** The app strip takes a flat
-opaque `--bg-raised` because it sits over ledger rows and the only requirement is that the
+**Grounds are not interchangeable between the two kinds of bar.** The app tab bar takes a
+flat opaque `--bg-raised` because it sits over ledger rows and the only requirement is that the
 rows do not read through it. The landing masthead takes the opposite treatment for the
 opposite reason — see §2's full-ambition allowance and the `masthead-plate` utility. It sits
 over four layered grounds, where an opaque bar does not read as chrome above the plate; it
@@ -1603,8 +2077,9 @@ its bottom rule is a gradient hairline that fades out at the gutters rather than
 a full-bleed hairline is itself a cut line. Do not "fix" it to an opaque fill.
 
 **Breakpoints** `sm` 640 · `md` 768 · `lg` 1024 · `xl` 1280 · `2xl` 1536 (Tailwind
-defaults), plus two app-specific thresholds: **900px** sidebar → drawer, **1280px**
-sidebar auto-collapse.
+defaults), plus two app-specific thresholds: **900px** rail → bottom tab bar, **1280px**
+sidebar auto-collapse. `md` (768px) carries more than a width: it is the touch boundary —
+the control scale steps there (§7), and the table → stacked-entry switch happens there.
 
 ---
 
@@ -1912,6 +2387,62 @@ not reason about contrast by eye.
 
 Things the toolchain does to CSS between what is written in `globals.css` and what the
 browser applies. Each one here cost real debugging time; none of them produced an error.
+
+### A constant exported from a `'use client'` module is not a constant on the server
+
+Shared class strings — `FILTER_CHIP`, `FILTER_MARK` — lived in `filter-panel.tsx`, which
+carries `'use client'`. The server components that import them did **not** receive the
+strings. The bundler replaces a client module's exports with client *references*, and React
+stringified that reference straight into the class attribute:
+
+```html
+class="function() { throw new Error(&quot;Attempted to call FILTER_CHIP() from the
+server but FILTER_CHIP is on the client...&quot;) } border-line-strong"
+```
+
+Every status and provider chip on payments, invoices and clients lost its border, radius and
+padding at once. **Nothing errored.** The page rendered, the checkboxes worked, and the only
+symptom was that the chips went flat — which is exactly the kind of thing that survives a
+visual skim.
+
+The fix is a plain module with no directive (`ui/filter-chip.ts`), which compiles into
+whichever graph imports it, so the string is a string on both sides.
+
+**The rule:** a `'use client'` file may export components. Anything a *server* component
+needs to read as a value — class strings, constants, maps, plain functions — belongs in an
+undirected module. Verify by computed style, not by eye: `borderTopWidth` was `0px` before
+and `1px` after, and the screenshot was the only thing that hinted at it.
+
+### `@theme inline` tokens cannot be overridden at a breakpoint
+
+`@theme inline` substitutes a token's **value** into every utility it generates and never
+emits the variable. `text-h2` compiles to `font-size: 1.5rem`, not
+`font-size: var(--text-h2)`, and `--text-h2` does not exist on `:root` at all.
+
+That is correct for the colour tokens, which point at per-theme variables that do their own
+swapping. It silently defeats any token that has to change at a breakpoint: the media query
+moves a variable no rule reads, nothing errors, and the utility keeps its inlined value.
+
+Symptom, and the check that finds it in one line:
+
+```js
+getComputedStyle(document.documentElement).getPropertyValue('--text-h2')
+// ''  — inlined, so the media-query override below will do nothing
+```
+
+A plain `@theme` (no `inline`) emits `:root { --spacing-control: 44px }` **and** compiles
+`h-control` to `height: var(--spacing-control)`, which a later media query can move. So
+`globals.css` has two theme blocks on purpose:
+
+- **`@theme inline`** — colours, fonts, radius, shadow, and the *fluid* type steps. A
+  `clamp()` does its own scaling and needs no override.
+- **`@theme`** — the control scale, the separation scale, and `--text-small`: everything
+  that steps at `md`.
+
+A related trap in the same family: **Tailwind tree-shakes theme variables it cannot see
+used.** A token defined in `@theme` but referenced by no utility and no rule is simply
+absent from the output, so probing `:root` for it returns `''` and looks like the bug above.
+It is not — it appears as soon as something uses it.
 
 ### Vendor prefixes: the build may keep the prefixed twin and drop the standard one
 

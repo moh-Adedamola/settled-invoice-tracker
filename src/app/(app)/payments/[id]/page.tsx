@@ -68,7 +68,7 @@ export default async function PaymentPage({
         eyebrow={
           <Link
             href={backHref}
-            className="rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
+            className="tap-target rounded-xs uppercase underline-offset-2 hover:text-ink hover:underline"
           >
             ← Payments
           </Link>
@@ -106,7 +106,7 @@ export default async function PaymentPage({
             {payment.client ? (
               <Link
                 href={`/clients/${payment.client.id}`}
-                className="rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
+                className="tap-target rounded-xs text-accent underline underline-offset-2 hover:text-accent-hover"
               >
                 {payment.client.name}
               </Link>

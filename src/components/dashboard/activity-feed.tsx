@@ -6,6 +6,7 @@ import {
   paymentStatusKey,
 } from '@/components/ui/status-badge';
 import { EmptyState } from './empty-state';
+import { DeskSection } from './desk-section';
 
 /**
  * Three record types in one stream. The union is discriminated on `kind`, so
@@ -19,23 +20,42 @@ import { EmptyState } from './empty-state';
  * `<details>` rather than a state toggle: it is native, keyboard-operable,
  * survives with no JavaScript, and adds no client bundle to a surface that is
  * otherwise fully server-rendered.
+ *
+ * ## Below md the whole feed is behind one, and the latest event is the summary
+ *
+ * A log answers "what happened", which is browsing. The three questions a
+ * reader opens this page with on a phone — what am I owed, what needs action,
+ * how are things going — are answered by the KPI tiers, the two action lists
+ * and the chart. At ~600px this was the second-largest block on the page and
+ * the only one that decided nothing.
+ *
+ * Collapsing it to a bare count would have lost the one genuinely live signal
+ * it carries: that money moved a minute ago. So the closed row names the most
+ * recent event. The reader still learns a payment landed; they just do not
+ * scroll fifteen entries to find out.
  */
 const VISIBLE = 6;
 export function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
-  return (
-    <section
-      aria-label="Recent activity"
-      className="flex flex-col rounded-md border border-line bg-surface-raised"
-    >
-      <div className="flex items-baseline justify-between gap-4 border-b border-line-subtle px-4 py-3">
-        <h2 className="text-h3 text-ink">Recent activity</h2>
-        <p className="text-small text-ink-muted">
-          {entries.length <= VISIBLE
-            ? `${entries.length} events`
-            : `${VISIBLE} of ${entries.length}`}
-        </p>
-      </div>
+  const latest = entries[0];
 
+  return (
+    <DeskSection
+      title="Recent activity"
+      aside={
+        entries.length <= VISIBLE
+          ? `${entries.length} events`
+          : `${VISIBLE} of ${entries.length}`
+      }
+      summary={
+        latest ? (
+          <>
+            {entries.length} events · latest {formatDateTime(latest.occurredAt)}
+          </>
+        ) : (
+          'Nothing yet'
+        )
+      }
+    >
       {entries.length === 0 ? (
         <EmptyState
           title="Nothing has happened yet"
@@ -51,7 +71,11 @@ export function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
 
           {entries.length > VISIBLE ? (
             <details className="group border-t border-line-subtle">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5 text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink">
+              {/* min-h-control, not py: a disclosure is a control, and this one
+                  measured 340x40.3 — the last thing on the dashboard still under
+                  the 44px minimum. `min-h` rather than `h` so a wrapped label
+                  grows the row instead of clipping it. */}
+              <summary className="flex min-h-control cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5 text-small text-ink-secondary transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-row-hover hover:text-ink">
                 <span>
                   Show {entries.length - VISIBLE} earlier
                   <span className="group-open:hidden"> events</span>
@@ -72,7 +96,7 @@ export function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
           ) : null}
         </>
       )}
-    </section>
+    </DeskSection>
   );
 }
 

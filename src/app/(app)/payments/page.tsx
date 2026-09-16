@@ -86,7 +86,7 @@ export default async function PaymentsPage({
           readOnly ? null : (
             <Link
               href="/payments/new"
-              className="ring-inverse inline-flex h-9 items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
+              className="ring-inverse inline-flex h-control items-center rounded-sm bg-accent px-3.5 text-small font-medium text-accent-fg transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-accent-hover active:bg-accent-active"
             >
               Record a payment
             </Link>
@@ -94,7 +94,7 @@ export default async function PaymentsPage({
         }
       />
 
-      <div className="flex flex-col gap-6 px-6 py-6">
+      <div className="flex flex-col gap-section px-6 py-6">
         <Suspense fallback={<FiltersSkeleton />}>
           <Filters
             selected={{ status, provider, currency, from, to, unmatched, q, sort, direction }}
@@ -179,7 +179,7 @@ async function PaymentList({
   const direction = params?.direction ?? DEFAULT_DIRECTION;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-section">
       {/*
         The queue banner.
 
@@ -189,24 +189,44 @@ async function PaymentList({
         unconditionally and links to the filtered view — and it is absent, not
         zeroed, when the queue is empty, because a standing "0 unmatched" is
         furniture people stop reading.
+
+        ## Where it belongs on a phone
+
+        It stays here, directly above the list, and the reason it was 1000px
+        down was never its position — it was the 484px filter form above it.
+        With the panel collapsed it lands in the first screen, which is the
+        outcome moving it would have bought.
+
+        Moving it above the filters was the alternative and is worse on two
+        counts. It describes the list, so it belongs with the list; and it is
+        computed from the same paginated query the list is, inside the same
+        Suspense boundary. Hoisting it would mean a second count query and a
+        third boundary, to move a block that is already in the first screen.
+
+        What it did need was weight. It was a thin line of 13px text; it is now
+        an action block, with the count at `text-h4` and a real 44px control
+        rather than an inline underline — §7: a queue item names its verb and
+        the verb is a target.
       */}
       {result.unmatchedTotal > 0 && !unmatchedFilterOn ? (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-sm border border-pending-line border-l-[3px] border-l-pending bg-pending-bg px-3 py-2.5 text-small text-pending">
-          <span aria-hidden="true" className="text-[10px] leading-none">
-            ◐
-          </span>
-          <span>
-            <span className="money font-medium">{result.unmatchedTotal}</span>{' '}
-            {result.unmatchedTotal === 1 ? 'payment has' : 'payments have'} arrived
-            that no invoice claims.
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-pending-line border-l-[3px] border-l-pending bg-pending-bg px-4 py-3">
+          <p className="flex items-baseline gap-2 text-pending">
+            <span aria-hidden="true" className="text-[0.75em]">
+              ◐
+            </span>
+            <span className="text-h4">
+              <span className="money">{result.unmatchedTotal}</span>{' '}
+              {result.unmatchedTotal === 1 ? 'payment has' : 'payments have'}{' '}
+              arrived that no invoice claims
+            </span>
+          </p>
           <Link
             href="/payments?unmatched=1"
-            className="rounded-xs underline underline-offset-2 hover:text-ink"
+            className="inline-flex h-control items-center rounded-sm border border-pending-line px-3 text-small whitespace-nowrap text-pending transition-colors duration-[var(--duration-fast)] ease-standard hover:bg-surface-raised"
           >
             Show only those
           </Link>
-        </p>
+        </div>
       ) : null}
 
       {/* Two renderings of one query, chosen by width in CSS so the correct one
